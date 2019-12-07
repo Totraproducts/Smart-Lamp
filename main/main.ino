@@ -1,5 +1,4 @@
-// Includes
-#define BLYNK_PRINT Serial
+/***************** INCLUDES *******************/
 
 #include <ArduinoJson.h>
 #include <ESP8266WebServer.h>
@@ -7,14 +6,18 @@
 #include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
 #include <esp8266httpclient.h>
-ESP8266WebServer Server;
-AutoConnect      Portal(Server);
+#include <Wire.h>
+#include <SparkFun_APDS9960.h>
 
 /***************** MACROS *******************/
 
 #define red D6
 #define green D8
 #define blue D7
+#define BLYNK_PRINT Serial
+
+ESP8266WebServer Server;
+AutoConnect      Portal(Server);
 
 /***************** GLOBAL VARIABLES *******************/
 
@@ -39,6 +42,8 @@ String APIkey      = "875199";             // Thingspeak Read Key, works only if
 String APIreadkey  = "LNMGX4DFAJK0MY5B";   // Thingspeak Read Key, works only if a PUBLIC viewable channel
 const int httpPort = 80;
 const unsigned long HTTP_TIMEOUT = 10000;  // max respone time from server
+SparkFun_APDS9960 apds = SparkFun_APDS9960();
+int isr_flag = 0;
 
 /***************** GPIO PIN DEFINES *******************/
 
@@ -154,7 +159,7 @@ int dis_cal_cm() {
 
 /**********************************************************
  * Function Name: gesture
- * Functionality: Intensity control ultrasonic sensor 
+ * Functionality: Intensity control ultrasonic sensor
  * Notes        : Control hand up down gesture
 ***********************************************************/
 void gesture()
@@ -181,7 +186,7 @@ void gesture()
 /**********************************************************
  * Function Name: skipResponseHeaders
  * Functionality: Wait until there is some data and skip headers
- * Notes        : 
+ * Notes        :
 ***********************************************************/
 bool skipResponseHeaders() {
   WiFiClient client;
@@ -195,7 +200,7 @@ bool skipResponseHeaders() {
 /**********************************************************
  * Function Name: decodeJSON
  * Functionality: Decode the json text
- * Notes        : 
+ * Notes        :
 ***********************************************************/
 bool decodeJSON(char *json) {
   StaticJsonDocument<1024> jsonBuffer;
@@ -263,9 +268,43 @@ void RetrieveTSChannelData() {  // Receive data from Thingspeak
 }
 
 /**********************************************************
+ * Function Name: handleGesture
+ * Functionality: Predict Hand Gesture
+ * Notes        :
+***********************************************************/
+void handleGesture()
+{
+    if ( apds.isGestureAvailable() )
+  {
+    switch ( apds.readGesture() )
+	{
+      case DIR_UP:
+        Serial.println("UP");
+        break;
+      case DIR_DOWN:
+        Serial.println("DOWN");
+        break;
+      case DIR_LEFT:
+        Serial.println("LEFT");
+        break;
+      case DIR_RIGHT:
+        Serial.println("RIGHT");
+        break;
+      case DIR_NEAR:
+        Serial.println("NEAR");
+        break;
+      case DIR_FAR:
+        Serial.println("FAR");
+        break;
+      default:
+        Serial.println("NONE");
+    }
+  }
+}
+/**********************************************************
  * Function Name: setup
  * Functionality: Arduino setup function
- * Notes        : 
+ * Notes        :
 ***********************************************************/
 void setup()
 {
@@ -280,14 +319,30 @@ void setup()
   analogWrite(green,count);
   analogWrite(blue,count);
 
+  // Setup pin mode
   pinMode(trigPin, OUTPUT); // Sets the trigPin as an Output
   pinMode(echoPin, INPUT); // Sets the echoPin as an Input
+  pinMode(APDS9960_INT, INPUT);
+
+  // Initialize APDS-9960 (configure I2C and initial values)
+  if ( apds.init() ) {
+    Serial.println(F("APDS-9960 initialization complete"));
+  } else {
+    Serial.println(F("Something went wrong during APDS-9960 init!"));
+  }
+
+  // Start running the APDS-9960 gesture sensor engine
+  if ( apds.enableGestureSensor(true) ) {
+    Serial.println(F("Gesture sensor is now running"));
+  } else {
+    Serial.println(F("Something went wrong during gesture sensor init!"));
+  }
 }
 
 /**********************************************************
  * Function Name: loop
  * Functionality: Arduino loop function
- * Notes        : 
+ * Notes        :
 ***********************************************************/
 void loop()
 {
@@ -315,4 +370,5 @@ void loop()
     RetrieveTSChannelData();
   }
   gesture();
+  handleGesture();
 }

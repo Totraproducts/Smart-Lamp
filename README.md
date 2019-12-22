@@ -2,7 +2,7 @@
 ## IOT based RGB lamp powered by esp8266
 
 There is need to modify Adafruit library.
-Change _**..\Arduino\libraries\Adafruit_APDS9960_Library\Adafruit_APDS9960.cpp**_ file
+Change _**...\Arduino\libraries\Adafruit_APDS9960_Library\Adafruit_APDS9960.cpp**_ file
 
 In function readGesture() of class Adafruit_APDS9960 the infinite while loop is replaced with for loop with 9 itteration.
 

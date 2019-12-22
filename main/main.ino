@@ -1,5 +1,6 @@
 /***************** INCLUDES *******************/
 
+#include "Adafruit_APDS9960.h"
 #include <ArduinoJson.h>
 #include <ESP8266WebServer.h>
 #include <AutoConnect.h>
@@ -7,21 +8,20 @@
 #include <BlynkSimpleEsp8266.h>
 #include <esp8266httpclient.h>
 #include <Wire.h>
-#include <SparkFun_APDS9960.h>
+
 
 /***************** MACROS *******************/
 
-#define red D6
-#define green D8
-#define blue D7
 #define BLYNK_PRINT Serial
+#define red D8
+#define green D7
+#define blue D6
 
 ESP8266WebServer Server;
 AutoConnect      Portal(Server);
 
 /***************** GLOBAL VARIABLES *******************/
 
-const int button=5;
 // You should get Auth Token in the Blynk App.
 // Go to the Project Settings (nut icon).
 char auth[] = "E5ow8NqRrM5i1uO-fIdPw--ViQDnrfze";
@@ -29,11 +29,16 @@ char auth[] = "E5ow8NqRrM5i1uO-fIdPw--ViQDnrfze";
 // Set password to "" for open networks.
 char ssid[] = "idk";
 char pass[] = "idk";
-int count=0;
+int rcount=0;
+int gcount=0;
+int bcount=0;
 int redbutton = 0;
+int greenbutton = 0;
+int bluebutton = 0;
 int pinValue=0;
 unsigned long time_now=0;
 unsigned long time_now2=0;
+unsigned long time_now3=0;
 // defines variables for distance sensor
 long duration;
 int distance;
@@ -42,13 +47,15 @@ String APIkey      = "875199";             // Thingspeak Read Key, works only if
 String APIreadkey  = "LNMGX4DFAJK0MY5B";   // Thingspeak Read Key, works only if a PUBLIC viewable channel
 const int httpPort = 80;
 const unsigned long HTTP_TIMEOUT = 10000;  // max respone time from server
-SparkFun_APDS9960 apds = SparkFun_APDS9960();
-int isr_flag = 0;
+int handcount=0;
+
+Adafruit_APDS9960 apds;
 
 /***************** GPIO PIN DEFINES *******************/
 
-const int trigPin = 0;  //D3
-const int echoPin = 2;  //D4
+const int rButton = 16;   //GPIO2 / TxD1
+const int gButton = 0;    //GPIO0 / D3
+const int bButton = 14;    //GPIO14 / SLCK
 
 /***************** FUNCTIONS *******************/
 
@@ -88,7 +95,7 @@ BLYNK_WRITE(V0)
   pinValue = param.asInt();
   // String i = param.asStr();
   // double d = param.asDouble();
-  Serial.print("V1 Slider value is: ");
+  Serial.print("Weather Button value is: ");
   Serial.println(pinValue);
   if(pinValue)
   {
@@ -132,55 +139,13 @@ float getweather()
       }
       temp = doc["main"]["temp"];
       temp = temp-273.15;
+      Serial.print("Temperature: ");
       Serial.println(temp);
     }
     http.end();   //Close connection
   }
+  Serial.println(temp);
   return temp;
-}
-
-/**********************************************************
- * Function Name: dis_cal_cm
- * Functionality: Distance Calculator Ultrasonic sensor
- * Notes        : Output Distance is in cm
-***********************************************************/
-int dis_cal_cm() {
-  digitalWrite(trigPin, LOW);
-  delayMicroseconds(2);
-  digitalWrite(trigPin, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(trigPin, LOW);
-
-  duration = pulseIn(echoPin, HIGH);
-
-  distance= duration*0.034/2;
-  return(distance);
-}
-
-/**********************************************************
- * Function Name: gesture
- * Functionality: Intensity control ultrasonic sensor
- * Notes        : Control hand up down gesture
-***********************************************************/
-void gesture()
-{
-  int r_val, gb_val;
-  distance = dis_cal_cm();
-  if((distance>2)&&(distance<30))
-  {
-    gb_val = map(distance, 3, 29, 0, 1023);
-    r_val = map(gb_val, 0, 1023, 0, 420);
-    Serial.print("R :");
-    Serial.println(r_val);
-    Serial.print("GB :");
-    Serial.println(gb_val);
-    Serial.print("Distance :");
-    Serial.println(distance);
-    analogWrite(red,  r_val);
-    analogWrite(green,gb_val);
-    analogWrite(blue, gb_val);
-    delay(100);
-  }
 }
 
 /**********************************************************
@@ -188,7 +153,7 @@ void gesture()
  * Functionality: Wait until there is some data and skip headers
  * Notes        :
 ***********************************************************/
-bool skipResponseHeaders() {
+/*bool skipResponseHeaders() {
   WiFiClient client;
   char endOfHeaders[] = "\r\n\r\n"; // HTTP headers end with an empty line
   client.setTimeout(HTTP_TIMEOUT);
@@ -196,13 +161,13 @@ bool skipResponseHeaders() {
   if (!ok) { Serial.println("No response or invalid response!"); }
   return ok;
 }
-
+*/
 /**********************************************************
  * Function Name: decodeJSON
  * Functionality: Decode the json text
  * Notes        :
 ***********************************************************/
-bool decodeJSON(char *json) {
+/*bool decodeJSON(char *json) {
   StaticJsonDocument<1024> jsonBuffer;
   char *jsonstart = strchr(json, '{'); // Skip characters until first '{' found and ignore length, if present
   if (jsonstart == NULL) {
@@ -230,14 +195,14 @@ bool decodeJSON(char *json) {
     Serial.print(" Field1 entry number ["+entry_id+"] had a value of: ");
     Serial.println(field1value);
   }
-}
+}*/
 
 /**********************************************************
  * Function Name: RetrieveTSChannelData
  * Functionality: Receive Thingspeak channel Data
  * Notes        : Control hand up down gesture
 ***********************************************************/
-void RetrieveTSChannelData() {  // Receive data from Thingspeak
+/*void RetrieveTSChannelData() {  // Receive data from Thingspeak
   WiFiClient client;
   static char responseBuffer[1024]; // Buffer for received data
   WiFiServer server(80);
@@ -265,42 +230,58 @@ void RetrieveTSChannelData() {  // Receive data from Thingspeak
     }
   }
   client.stop();
-}
+}*/
 
 /**********************************************************
  * Function Name: handleGesture
- * Functionality: Predict Hand Gesture
+ * Functionality: hand gesture prediction fuction
  * Notes        :
 ***********************************************************/
 void handleGesture()
 {
-    if ( apds.isGestureAvailable() )
+  //Serial.println("In Gesture Sensor function!");
+  uint8_t gesture = apds.readGesture();
+  //Serial.println("Function done!");
+  if(gesture == APDS9960_DOWN) 
   {
-    switch ( apds.readGesture() )
-	{
-      case DIR_UP:
-        Serial.println("UP");
-        break;
-      case DIR_DOWN:
-        Serial.println("DOWN");
-        break;
-      case DIR_LEFT:
-        Serial.println("LEFT");
-        break;
-      case DIR_RIGHT:
-        Serial.println("RIGHT");
-        break;
-      case DIR_NEAR:
-        Serial.println("NEAR");
-        break;
-      case DIR_FAR:
-        Serial.println("FAR");
-        break;
-      default:
-        Serial.println("NONE");
-    }
+    Serial.println("v");
+  }
+  if(gesture == APDS9960_UP) 
+  {
+    Serial.println("^");
+  }
+  if(gesture == APDS9960_LEFT)
+  {
+    Serial.println("<");
+  }
+  if(gesture == APDS9960_RIGHT)
+  {
+    Serial.println(">");
   }
 }
+
+/**********************************************************
+ * Function Name: thingspeakUpdateForOtherLamp
+ * Functionality: Detect gesture and update server
+ * Notes        :
+***********************************************************/
+void thingspeakUpdateForOtherLamp()
+{
+  if(apds.readProximity())
+  {
+    handcount++;
+    if(handcount>100)
+    {
+      Serial.println("Send data to server...");
+      handcount=0;
+    }
+  }
+  else
+  {
+    handcount=0;
+  }
+}
+
 /**********************************************************
  * Function Name: setup
  * Functionality: Arduino setup function
@@ -315,28 +296,23 @@ void setup()
   }
   Blynk.begin(auth, ssid, pass);
 
-  analogWrite(red,count);
-  analogWrite(green,count);
-  analogWrite(blue,count);
+  analogWrite(red,rcount);
+  analogWrite(green,gcount);
+  analogWrite(blue,bcount);
 
-  // Setup pin mode
-  pinMode(trigPin, OUTPUT); // Sets the trigPin as an Output
-  pinMode(echoPin, INPUT); // Sets the echoPin as an Input
-  pinMode(APDS9960_INT, INPUT);
+  pinMode(rButton, INPUT);
+  pinMode(gButton, INPUT);
+  pinMode(bButton, INPUT);
 
-  // Initialize APDS-9960 (configure I2C and initial values)
-  if ( apds.init() ) {
-    Serial.println(F("APDS-9960 initialization complete"));
-  } else {
-    Serial.println(F("Something went wrong during APDS-9960 init!"));
+  if(!apds.begin()){
+    Serial.println("failed to initialize device! Please check your wiring.");
   }
+  else Serial.println("Gesture initialized!");
 
-  // Start running the APDS-9960 gesture sensor engine
-  if ( apds.enableGestureSensor(true) ) {
-    Serial.println(F("Gesture sensor is now running"));
-  } else {
-    Serial.println(F("Something went wrong during gesture sensor init!"));
-  }
+  //gesture mode will be entered once proximity mode senses something close
+  apds.enableProximity(true);
+  apds.enableGesture(true);
+  delay(10000);
 }
 
 /**********************************************************
@@ -346,29 +322,58 @@ void setup()
 ***********************************************************/
 void loop()
 {
-  redbutton = digitalRead(button);
+  redbutton = digitalRead(rButton);
+  greenbutton = digitalRead(gButton);
+  bluebutton = digitalRead(bButton);
   Blynk.run();
   Portal.handleClient();
-  if (redbutton == HIGH)
+  if (redbutton == HIGH) // Read Red touch sensor
   {
-     count+=40;
-     if (count > 1023)
+     rcount+=40;
+     if (rcount > 1023)
      {
-        count = 0;
+        rcount = 0;
      }
-     analogWrite(red,count);
+     analogWrite(red,rcount);
+     Serial.print("Red Value: ");
+     Serial.println(rcount);
      delay(500);
   }
+  /*if (greenbutton == HIGH) // Read Green touch sensor
+  {
+     gcount+=40;
+     if (gcount > 1023)
+     {
+        gcount = 0;
+     }
+     analogWrite(green,gcount);
+     Serial.print("Green Value: ");
+     Serial.println(gcount);
+     delay(500);
+  }
+  if (bluebutton == HIGH) // Read Blue touch sensor
+  {
+     bcount+=40;
+     if (bcount > 1023)
+     {
+        bcount = 0;
+     }
+     analogWrite(blue,bcount);
+     Serial.print("Blue Value: ");
+     Serial.println(bcount);
+     delay(500);
+  }*/
   if ((pinValue) && (millis()>time_now+900000))
   {
     time_now=millis();
     mapColor(getweather());
   }
-  if (millis()>time_now2+10000)
+  /*if (millis()>time_now2+10000)
   {
     time_now2=millis();
     RetrieveTSChannelData();
-  }
-  gesture();
+  }*/
+
   handleGesture();
+  //thingspeakUpdateForOtherLamp();
 }

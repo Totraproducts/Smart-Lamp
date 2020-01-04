@@ -1,3 +1,13 @@
+ /********************************************************           
+  *            Program for IOT Samrt Lamp              *   
+  *                                                    *   
+  * Author:   Rahul Sharma                             *   
+  *                                                    *   
+  * Purpose:  Demonstration of a simple program.       *   
+  *                                                    *   
+  * Usage:    Upload it to esp8266                     *    
+********************************************************/  
+ 
 /***************** INCLUDES *******************/
 
 #include "Adafruit_APDS9960.h"
@@ -8,6 +18,7 @@
 #include <BlynkSimpleEsp8266.h>
 #include <esp8266httpclient.h>
 #include <Wire.h>
+#include <ThingSpeak.h>
 
 
 /***************** MACROS *******************/
@@ -19,43 +30,51 @@
 
 ESP8266WebServer Server;
 AutoConnect      Portal(Server);
+WiFiClient       client;
 
 /***************** GLOBAL VARIABLES *******************/
 
 // You should get Auth Token in the Blynk App.
 // Go to the Project Settings (nut icon).
-char auth[] = "E5ow8NqRrM5i1uO-fIdPw--ViQDnrfze";
+
+char auth[]            = "E5ow8NqRrM5i1uO-fIdPw--ViQDnrfze";
+
 // Your WiFi credentials.
-// Set password to "" for open networks.
-char ssid[] = "idk";
-char pass[] = "idk";
-int rcount=0;
-int gcount=0;
-int bcount=0;
-int redbutton = 0;
-int greenbutton = 0;
-int bluebutton = 0;
-int pinValue=0;
-unsigned long time_now=0;
-unsigned long time_now2=0;
-unsigned long time_now3=0;
+char ssid[]            = "idk";
+char pass[]            = "idk";
+int rcount             = 0;
+int gcount             = 0;
+int bcount             = 0;
+int redbutton          = 0;
+int greenbutton        = 0;
+int bluebutton         = 0;
+int pinValue           = 0;
+unsigned long time_now = 0;
+unsigned long time_now2= 0;
+unsigned long time_now3= 0;
+const int FieldLamp1   = 1;
+const int FieldLamp2   = 2;
+
 // defines variables for distance sensor
 long duration;
 int distance;
-char   host[]      = "api.thingspeak.com"; // ThingSpeak address
-String APIkey      = "875199";             // Thingspeak Read Key, works only if a PUBLIC viewable channel
-String APIreadkey  = "LNMGX4DFAJK0MY5B";   // Thingspeak Read Key, works only if a PUBLIC viewable channel
-const int httpPort = 80;
+const char* host                 = "api.thingspeak.com"; // ThingSpeak address
+String host_str                  = "https://api.thingspeak.com";
+unsigned long Channelno          = 875199;             // Thingspeak Read Key, works only if a PUBLIC viewable channel
+const char * APIreadkey          = "LNMGX4DFAJK0MY5B";   // Thingspeak Read Key, works only if a PUBLIC viewable channel
+String APIreadkey_str            = "LNMGX4DFAJK0MY5B";
+String Channelno_str             = "875199";
+const int httpPort               = 80;
 const unsigned long HTTP_TIMEOUT = 10000;  // max respone time from server
-int handcount=0;
+int handcount                    =0;
 
 Adafruit_APDS9960 apds;
 
 /***************** GPIO PIN DEFINES *******************/
 
-const int rButton = 16;   //GPIO2 / TxD1
+const int rButton = 14;   //GPIO2 / TxD1
 const int gButton = 0;    //GPIO0 / D3
-const int bButton = 14;    //GPIO14 / SLCK
+const int bButton = 16;    //GPIO14 / SLCK
 
 /***************** FUNCTIONS *******************/
 
@@ -153,7 +172,7 @@ float getweather()
  * Functionality: Wait until there is some data and skip headers
  * Notes        :
 ***********************************************************/
-/*bool skipResponseHeaders() {
+bool skipResponseHeaders() {
   WiFiClient client;
   char endOfHeaders[] = "\r\n\r\n"; // HTTP headers end with an empty line
   client.setTimeout(HTTP_TIMEOUT);
@@ -161,37 +180,45 @@ float getweather()
   if (!ok) { Serial.println("No response or invalid response!"); }
   return ok;
 }
-*/
+
 /**********************************************************
  * Function Name: decodeJSON
  * Functionality: Decode the json text
  * Notes        :
 ***********************************************************/
-/*bool decodeJSON(char *json) {
-  StaticJsonDocument<1024> jsonBuffer;
+/*bool decodeJSON(char json[]) {
+  StaticJsonDocument<1024> doc;
   char *jsonstart = strchr(json, '{'); // Skip characters until first '{' found and ignore length, if present
   if (jsonstart == NULL) {
     Serial.println("JSON data missing");
     return false;
   }
-  json = jsonstart;
-  JsonObject& root = jsonBuffer.parseObject(json); // Parse JSON
-  if (!root.success()) {
-    Serial.println(F("jsonBuffer.parseObject() failed"));
+  //json = jsonstart;
+  auto error = deserializeJson(doc, json);   // Parse JSON
+  if (error) {
+    Serial.print(F("deserializeJson() failed with code "));
+    Serial.println(error.c_str());
     return false;
   }
-  JsonObject& root_data = root["channel"]; // Begins and ends within first set of { }
-  String id   = root_data["id"];
-  String name = root_data["name"];
-  String field1_name = root_data["field1"];
-  String datetime    = root_data["updated_at"];
+  StaticJsonDocument<512> doc2;  // Begins and ends within first set of { }
+  error = deserializeJson(doc2, doc["channel"]);
+  if (error) {
+    Serial.print(F("deserializeJson() failed with code "));
+    Serial.println(error.c_str());
+    return false;
+  }
+  String id   = doc2["id"];
+  String name = doc2["name"];
+  String field1_name = doc2["field1"];
+  String datetime    = doc2["updated_at"];
   Serial.println("\n\n Channel id: "+id+" Name: "+ name);
   Serial.println(" Readings last updated at: "+datetime);
 
   for (int result = 0; result < 1; result++){
-    JsonObject& channel = root["feeds"][result]; // Now we can read 'feeds' values and so-on
-    String entry_id     = channel["entry_id"];
-    String field1value  = channel["field1"];
+    StaticJsonDocument<200> doc3;
+    auto error = deserializeJson(doc3, doc["feeds"][result]); // Now we can read 'feeds' values and so-on
+    String entry_id     = doc3["entry_id"];
+    String field1value  = doc3["field1"];
     Serial.print(" Field1 entry number ["+entry_id+"] had a value of: ");
     Serial.println(field1value);
   }
@@ -202,7 +229,7 @@ float getweather()
  * Functionality: Receive Thingspeak channel Data
  * Notes        : Control hand up down gesture
 ***********************************************************/
-/*void RetrieveTSChannelData() {  // Receive data from Thingspeak
+void RetrieveTSChannelData() {  // Receive data from Thingspeak
   WiFiClient client;
   static char responseBuffer[1024]; // Buffer for received data
   WiFiServer server(80);
@@ -211,12 +238,12 @@ float getweather()
     Serial.println("connection failed");
     return;
   }
-  String url = "/channels/" + APIkey; // Start building API request string
+  String url = "/channels/" + Channelno_str; // Start building API request string
   //GET /channels/CHANNEL_ID/feeds.json?api_key=<your API key>&results=2
   #ifdef PRIVATE
   url += "/fields/1.json?results=1";  // 1 is the results request number, so 5 are returned, 1 woudl return the last result received
   #else
-  url += "/fields/1.json?api_key="+APIreadkey+"&results=1";  // 1 is the results request number, so 1 are returned, 1 woudl return the last result received
+  url += "/fields/1.json?api_key="+APIreadkey_str+"&results=1";  // 1 is the results request number, so 1 are returned, 1 woudl return the last result received
   #endif
   client.print(String("GET ") + url + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "Connection: close\r\n\r\n");
   Serial.println("\n\r"+String("GET ") + url + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "Connection: close\r\n\r\n");
@@ -226,11 +253,23 @@ float getweather()
     if ( line.indexOf('{',0) >= 0 ) {                  // Ignore data that is not likely to be JSON formatted, so must contain a '{'
       Serial.println(line);                            // Show the text received
       line.toCharArray(responseBuffer, line.length()); // Convert to char array for the JSON decoder
-      decodeJSON(responseBuffer);                      // Decode the JSON text
+      //decodeJSON(responseBuffer);                      // Decode the JSON text
+      Serial.println(responseBuffer);
     }
   }
   client.stop();
-}*/
+}
+void RetrieveTSChannelData2()   // Receive data from Thingspeak
+{
+  int statusCode;
+  long field2Data = ThingSpeak.readLongField(Channelno, FieldLamp2, APIreadkey);
+  statusCode = ThingSpeak.getLastReadStatus();
+  if (statusCode == 200)
+  {
+    Serial.println("True IF condition");
+    Serial.println(field2Data);
+  }
+}
 
 /**********************************************************
  * Function Name: handleGesture
@@ -270,9 +309,49 @@ void thingspeakUpdateForOtherLamp()
   if(apds.readProximity())
   {
     handcount++;
-    if(handcount>100)
+    if(handcount>200)
     {
       Serial.println("Send data to server...");
+       //---------------------------------------------------------------------
+       //Connect to host, host(web site) is define at top 
+       if(!client.connect(host, httpPort)){
+         Serial.println("Connection Failed");
+         delay(300);
+         return; //Keep retrying until we get connected
+       }
+       
+      //---------------------------------------------------------------------
+        //Make GET request as pet HTTP GET Protocol format
+        String ADCData;
+        int Datatosend = 1;
+        ADCData = String(Datatosend);   //String to interger conversion
+        String Link="GET /update?api_key="+APIreadkey_str+"&field1=";  //Requeste webpage  
+        Link = Link + ADCData;
+        Link = Link + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "Connection: close\r\n\r\n";                
+        client.print(Link);
+        delay(100);
+        
+      //---------------------------------------------------------------------
+       //Wait for server to respond with timeout of 5 Seconds
+       int timeout=0;
+       while((!client.available()) && (timeout < 1000))     //Wait 5 seconds for data
+       {
+         delay(10);  //Use this with time out
+         timeout++;
+       }
+       
+      //---------------------------------------------------------------------
+       //If data is available before time out read it.
+       if(timeout < 500)
+       {
+           while(client.available()){
+              Serial.println(client.readString()); //Response from ThingSpeak       
+           }
+       }
+       else
+       {
+           Serial.println("Request timeout..");
+       }
       handcount=0;
     }
   }
@@ -312,6 +391,7 @@ void setup()
   //gesture mode will be entered once proximity mode senses something close
   apds.enableProximity(true);
   apds.enableGesture(true);
+  ThingSpeak.begin(client);
   delay(10000);
 }
 
@@ -327,7 +407,7 @@ void loop()
   bluebutton = digitalRead(bButton);
   Blynk.run();
   Portal.handleClient();
-  if (redbutton == HIGH) // Read Red touch sensor
+  /*if (redbutton == HIGH) // Read Red touch sensor
   {
      rcount+=40;
      if (rcount > 1023)
@@ -338,7 +418,7 @@ void loop()
      Serial.print("Red Value: ");
      Serial.println(rcount);
      delay(500);
-  }
+  }*/
   /*if (greenbutton == HIGH) // Read Green touch sensor
   {
      gcount+=40;
@@ -350,7 +430,7 @@ void loop()
      Serial.print("Green Value: ");
      Serial.println(gcount);
      delay(500);
-  }
+  }*/
   if (bluebutton == HIGH) // Read Blue touch sensor
   {
      bcount+=40;
@@ -362,18 +442,18 @@ void loop()
      Serial.print("Blue Value: ");
      Serial.println(bcount);
      delay(500);
-  }*/
+  }
   if ((pinValue) && (millis()>time_now+900000))
   {
     time_now=millis();
     mapColor(getweather());
   }
-  /*if (millis()>time_now2+10000)
+  if (millis()>time_now2+10000)
   {
     time_now2=millis();
-    RetrieveTSChannelData();
-  }*/
+    RetrieveTSChannelData2();
+  }
 
   handleGesture();
-  //thingspeakUpdateForOtherLamp();
+  thingspeakUpdateForOtherLamp();
 }

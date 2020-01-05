@@ -19,7 +19,7 @@
 #include <esp8266httpclient.h>
 #include <Wire.h>
 #include <ThingSpeak.h>
-
+// Test comment
 
 /***************** MACROS *******************/
 

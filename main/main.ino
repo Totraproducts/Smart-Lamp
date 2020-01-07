@@ -348,8 +348,7 @@ void thingspeakUpdateForOtherLamp()
       analogWrite(red,160);
       analogWrite(green,255);
       analogWrite(blue,255);
-
-	  Serial.println("Send data to server...");
+      Serial.println("Send data to server...");
        //---------------------------------------------------------------------
        //Connect to host, host(web site) is define at top
        if(!client.connect(host, httpPort)){
@@ -390,11 +389,11 @@ void thingspeakUpdateForOtherLamp()
        {
            Serial.println("Request timeout..");
        }
-       apds.enableProximity(true);
-       analogWrite(red,  red_loc);
-       analogWrite(green,green_loc);
-       analogWrite(blue, blue_loc);
-       handcount=0;
+      handcount=0;
+      apds.enableProximity(true);
+      analogWrite(red,  red_loc);
+      analogWrite(green,green_loc);
+      analogWrite(blue, blue_loc);
     }
   }
   else
@@ -429,9 +428,9 @@ void setup()
     Serial.println("failed to initialize device! Please check your wiring.");
   }
   else Serial.println("Gesture initialized!");
-
   //gesture mode will be entered once proximity mode senses something close
   apds.enableProximity(true);
+  apds.setProximityInterruptThreshold(0, 175);
   apds.enableGesture(true);
   ThingSpeak.begin(client);
   colorIdx = random(0, 200);

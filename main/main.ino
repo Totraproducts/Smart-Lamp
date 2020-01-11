@@ -36,7 +36,8 @@
 ESP8266WebServer Server;
 AutoConnect      Portal(Server);
 WiFiClient       client;
-
+WidgetBridge     bridge1(V1);              // Bridge widget on virtual pin 1
+BlynkTimer       timer;                    // Timer for blynking
 /***************** GLOBAL VARIABLES *******************/
 
 // You should get Auth Token in the Blynk App.
@@ -45,22 +46,32 @@ WiFiClient       client;
 char auth[]            = "E5ow8NqRrM5i1uO-fIdPw--ViQDnrfze";
 
 // Your WiFi credentials.
-char ssid[]                = "idk";
-char pass[]                = "idk";
-int rcount                 = 0;
-int gcount                 = 0;
-int bcount                 = 0;
-int redbutton              = 0;
-int greenbutton            = 0;
-int bluebutton             = 0;
-int pinValue               = 0;
-int pinValue_randomColor   = 0;
-unsigned long time_now     = 0;
-unsigned long time_now2    = 0;
-unsigned long time_now3    = 0;
-const int FieldLamp1       = 1;
-const int FieldLamp2       = 2;
+char ssid[]                  = "idk";
+char pass[]                  = "idk";
+int rcount                   = 0;
+int gcount                   = 0;
+int bcount                   = 0;
+int redbutton                = 0;
+int greenbutton              = 0;
+int bluebutton               = 0;
+int pinValue                 = 0;
+int pinValue_randomColor     = 0;
+unsigned long time_now       = 0;
+unsigned long time_now2      = 0;
+unsigned long time_now3      = 0;
+const int FieldLamp1         = 1;
+const int FieldLamp2         = 2;
+static bool lamp2TriggerVal  = false;
 
+/*Virtual Ports
+
+		V0 = To set color according to weather
+		V1 = To set random Color
+		V2 = To send Red color to Lamp-2
+		V3 = To send Green color to Lamp-2
+		V4 = To send Blue color to Lamp-2
+
+*/
 // defines variables for distance sensor
 long duration;
 int distance;
@@ -72,7 +83,6 @@ String APIreadkey_str            = "LNMGX4DFAJK0MY5B";
 String Channelno_str             = "875199";
 const int httpPort               = 80;
 const unsigned long HTTP_TIMEOUT = 10000;  // max respone time from server
-int handcount                    = 0;
 int colorIdx                     = 0;
 
 Adafruit_APDS9960 apds;
@@ -84,46 +94,36 @@ const int gButton = 0;    //GPIO0 / D3
 const int bButton = 16;    //GPIO14 / SLCK
 
 /***************** RANDOM COLOR ARRAY *******************/
-unsigned char random_color_array[200][3] =  {{115, 126, 97}, {18, 59, 251}, {188, 9, 201}, {89, 168, 174}, {227, 50, 156},
-                                             {131, 108, 181}, {68, 222, 45}, {235, 4, 221}, {96, 86, 188}, {71, 208, 26},
-                                             {3, 110, 176}, {87, 145, 182}, {61, 15, 53}, {90, 204, 219}, {109, 186, 99},
-                                             {168, 124, 39}, {13, 200, 116}, {14, 215, 249}, {166, 39, 37}, {225, 207, 160},
-                                             {210, 0, 202}, {75, 210, 89}, {88, 10, 76}, {248, 237, 186}, {203, 22, 150},
-                                             {32, 208, 196}, {18, 80, 171}, {195, 183, 119}, {104, 2, 70}, {242, 216, 196},
-                                             {140, 118, 53}, {147, 88, 55}, {36, 150, 244}, {207, 166, 121}, {103, 228, 199},
-                                             {156, 28, 131}, {213, 15, 8}, {134, 95, 12}, {184, 136, 11}, {198, 85, 230},
-                                             {65, 254, 2}, {67, 91, 239}, {163, 189, 31}, {197, 229, 132}, {254, 156, 83},
-                                             {181, 141, 28}, {73, 44, 106}, {212, 220, 140}, {108, 101, 22}, {71, 74, 239},
-                                             {38, 172, 73}, {227, 115, 112}, {250, 227, 36}, {31, 149, 40}, {117, 146, 42},
-                                             {235, 78, 253}, {104, 139, 123}, {131, 18, 246}, {187, 208, 239}, {95, 72, 204},
-                                             {75, 79, 171}, {105, 153, 92}, {137, 22, 50}, {199, 239, 199}, {20, 57, 121},
-                                             {70, 250, 157}, {131, 61, 1}, {140, 79, 122}, {234, 97, 237}, {38, 110, 13},
-                                             {114, 187, 78}, {218, 179, 235}, {208, 192, 186}, {146, 137, 40}, {157, 149, 44},
-                                             {99, 76, 98}, {45, 114, 30}, {171, 101, 8}, {248, 116, 116}, {140, 126, 31},
-                                             {207, 86, 12}, {199, 132, 25}, {134, 158, 169}, {114, 78, 227}, {154, 226, 189},
-                                             {116, 61, 230}, {145, 6, 255}, {31, 223, 197}, {218, 131, 120}, {121, 148, 45},
-                                             {149, 84, 39}, {91, 228, 103}, {164, 211, 111}, {128, 115, 164}, {4, 238, 186},
-                                             {253, 68, 185}, {180, 219, 24}, {37, 195, 202}, {191, 185, 151}, {69, 221, 201},
-                                             {187, 196, 233}, {196, 151, 165}, {184, 55, 227}, {166, 43, 57}, {23, 54, 136},
-                                             {217, 81, 29}, {102, 231, 159}, {194, 55, 151}, {109, 53, 56}, {68, 151, 247},
-                                             {220, 77, 73}, {52, 230, 38}, {228, 11, 0}, {131, 115, 128}, {172, 86, 115},
-                                             {105, 82, 109}, {101, 141, 130}, {65, 72, 102}, {105, 29, 157}, {68, 225, 16},
-                                             {212, 255, 177}, {194, 124, 106}, {75, 97, 244}, {118, 229, 204}, {156, 162, 44},
-                                             {210, 178, 36}, {241, 199, 194}, {73, 51, 216}, {9, 2, 152}, {232, 235, 154},
-                                             {224, 24, 46}, {185, 25, 189}, {22, 198, 179}, {81, 0, 18}, {68, 84, 176},
-                                             {74, 33, 78}, {71, 14, 57}, {247, 98, 148}, {172, 49, 109}, {19, 78, 159},
-                                             {90, 218, 140}, {149, 80, 114}, {175, 66, 1}, {93, 189, 1}, {23, 225, 90},
-                                             {190, 43, 86}, {222, 250, 108}, {147, 18, 25}, {117, 157, 240}, {121, 54, 6},
-                                             {181, 188, 152}, {241, 128, 133}, {160, 25, 181}, {90, 188, 110}, {181, 48, 88},
-                                             {48, 188, 247}, {111, 11, 55}, {195, 125, 185}, {18, 122, 213}, {194, 26, 17},
-                                             {250, 157, 88}, {245, 206, 67}, {226, 156, 109}, {78, 62, 206}, {79, 42, 140},
-                                             {221, 98, 217}, {170, 79, 115}, {158, 71, 234}, {227, 50, 181}, {144, 13, 3},
-                                             {20, 28, 179}, {240, 159, 177}, {33, 94, 152}, {126, 55, 85}, {42, 71, 214},
-                                             {140, 100, 117}, {200, 225, 144}, {188, 2, 3}, {226, 245, 106}, {6, 244, 28},
-                                             {250, 177, 201}, {134, 86, 221}, {215, 167, 53}, {233, 237, 63}, {211, 161, 43},
-                                             {31, 176, 199}, {217, 175, 76}, {205, 74, 212}, {254, 67, 85}, {254, 226, 142},
-                                             {95, 141, 101}, {2, 116, 108}, {226, 50, 188}, {61, 106, 212}, {148, 26, 108},
-                                             {148, 52, 28}, {67, 35, 135}, {191, 150, 25}, {2, 115, 92}, {20, 0, 36}};
+unsigned char random_color_array[200][3] =  {{53, 214, 82}, {150, 44, 213}, {9, 191, 38}, {33, 8, 25}, {151, 13, 19}, {27, 209, 176},
+                                             {135, 119, 36}, {72, 117, 208}, {151, 82, 194}, {31, 89, 247}, {96, 143, 147}, {65, 75, 83},
+											 {141, 253, 103}, {41, 27, 183}, {121, 4, 167}, {21, 201, 6}, {25, 230, 89}, {124, 13, 175},
+											 {55, 164, 226}, {116, 106, 162}, {61, 253, 108}, {156, 173, 221}, {9, 219, 63}, {127, 224, 224},
+											 {142, 60, 85}, {60, 240, 56}, {91, 220, 162}, {50, 242, 96}, {134, 161, 153}, {153, 238, 54},
+											 {68, 186, 6}, {128, 79, 70}, {156, 27, 96}, {42, 136, 122}, {50, 220, 65}, {69, 29, 16}, {71, 33, 254},
+											 {139, 250, 105}, {64, 117, 233}, {87, 33, 221}, {76, 18, 147}, {12, 6, 153}, {156, 144, 34},
+											 {87, 236, 83}, {116, 114, 248}, {132, 125, 185}, {158, 88, 143}, {25, 111, 168}, {150, 173, 224},
+											 {4, 232, 93}, {156, 196, 201}, {147, 135, 100}, {150, 56, 67}, {160, 245, 60}, {44, 9, 48}, {93, 82, 52},
+											 {117, 148, 93}, {59, 182, 153}, {51, 193, 55}, {41, 123, 199}, {103, 43, 36}, {6, 251, 64}, {78, 25, 77},
+											 {137, 205, 69}, {89, 181, 242}, {101, 206, 61}, {82, 166, 228}, {18, 118, 153}, {9, 131, 15}, {126, 79, 2},
+											 {55, 48, 134}, {3, 238, 15}, {137, 86, 133}, {17, 142, 191}, {122, 29, 118}, {113, 86, 59}, {148, 126, 214},
+											 {92, 95, 220}, {41, 111, 160}, {11, 107, 50}, {40, 43, 24}, {140, 198, 28}, {54, 231, 182}, {142, 82, 80},
+											 {19, 44, 239}, {136, 160, 101}, {10, 220, 214}, {130, 172, 205}, {45, 104, 115}, {8, 1, 117}, {37, 174, 32},
+											 {44, 157, 96}, {129, 243, 202}, {6, 255, 133}, {26, 155, 57}, {124, 135, 138}, {109, 75, 140}, {119, 74, 232},
+											 {14, 210, 97}, {159, 115, 244}, {147, 237, 98}, {25, 219, 102}, {92, 130, 178}, {11, 3, 159}, {58, 95, 69},
+											 {115, 114, 159}, {110, 6, 142}, {105, 50, 122}, {106, 119, 198}, {4, 102, 202}, {60, 169, 182}, {73, 138, 145},
+											 {160, 133, 28}, {148, 196, 7}, {119, 226, 105}, {47, 11, 107}, {108, 48, 9}, {118, 43, 22}, {113, 236, 116},
+											 {83, 211, 219}, {100, 59, 34}, {36, 235, 133}, {126, 240, 70}, {135, 164, 205}, {46, 246, 53}, {142, 141, 232},
+											 {117, 18, 53}, {83, 147, 3}, {42, 78, 211}, {66, 167, 163}, {78, 204, 26}, {149, 138, 130}, {40, 216, 20},
+											 {62, 114, 235}, {81, 47, 172}, {154, 182, 153}, {132, 186, 232}, {150, 91, 50}, {92, 79, 23}, {17, 115, 232},
+											 {56, 176, 53}, {38, 249, 212}, {110, 128, 42}, {57, 216, 151}, {11, 107, 124}, {79, 60, 156}, {109, 130, 67},
+											 {52, 177, 229}, {0, 60, 77}, {2, 64, 59}, {57, 184, 149}, {125, 89, 148}, {14, 165, 56}, {3, 157, 194},
+											 {81, 198, 159}, {126, 111, 94}, {57, 3, 155}, {71, 246, 136}, {118, 205, 241}, {128, 227, 149}, {121, 250, 77},
+											 {27, 10, 97}, {147, 86, 177}, {45, 182, 247}, {23, 247, 214}, {80, 66, 95}, {115, 100, 55}, {62, 144, 43},
+											 {42, 129, 141}, {68, 12, 114}, {46, 121, 89}, {53, 241, 1}, {46, 162, 48}, {79, 98, 170}, {49, 201, 103},
+											 {157, 66, 85}, {61, 37, 254}, {127, 244, 120}, {42, 155, 50}, {63, 6, 200}, {110, 199, 66}, {112, 216, 58},
+											 {76, 105, 198}, {150, 152, 72}, {115, 193, 182}, {152, 211, 238}, {116, 198, 147}, {4, 53, 51}, {138, 161, 202},
+											 {102, 211, 138}, {124, 92, 32}, {126, 86, 242}, {33, 123, 101}, {90, 180, 218}, {117, 9, 101}, {139, 94, 92},
+											 {104, 35, 84}, {19, 8, 40}, {112, 161, 102}, {135, 63, 109}};
 
 /***************** STRUCTURE *******************/
 struct rgbvalue{
@@ -205,10 +205,16 @@ BLYNK_WRITE(V1)
   Serial.println(pinValue_randomColor);
   if(pinValue_randomColor)
   {
-
+    colorIdx = random(0, 200);
     analogWrite(red,   (int)random_color_array[colorIdx][0]);
     analogWrite(green, (int)random_color_array[colorIdx][1]);
     analogWrite(blue,  (int)random_color_array[colorIdx][2]);
+  }
+  else
+  {
+    analogWrite(red,0);
+    analogWrite(green,0);
+    analogWrite(blue,0);
   }
 }
 /**********************************************************
@@ -267,7 +273,7 @@ bool skipResponseHeaders() {
  * Functionality: Receive Thingspeak channel Data
  * Notes        : Control hand up down gesture
 ***********************************************************/
-void RetrieveTSChannelData()   // Receive data from Thingspeak
+/*void RetrieveTSChannelData()   // Receive data from Thingspeak
 {
   int statusCode;
   long field2Data = ThingSpeak.readLongField(Channelno, FieldLamp2, APIreadkey);
@@ -276,6 +282,60 @@ void RetrieveTSChannelData()   // Receive data from Thingspeak
   {
     Serial.println(field2Data);
   }
+}*/
+
+/**********************************************************
+ * Function Name: setLamp2Color
+ * Functionality: Set Lamp-2 color
+ * Notes        : Call with Timer iterrupt
+***********************************************************/
+void setLamp2Color() // Here we will send HIGH or LOW once per 5 second
+{
+  // Send value to another device
+  if (lamp2TriggerVal)
+  {
+	  int red_loc, green_loc, blue_loc;
+   
+	  red_loc   = pulseIn(red, HIGH);
+    green_loc = pulseIn(green, HIGH);
+    blue_loc  = pulseIn(blue, HIGH);
+
+    analogWrite(red,160);
+    analogWrite(green,255);
+    analogWrite(blue,255);
+    delay(500);
+    analogWrite(red,0);
+    analogWrite(green,0);
+    analogWrite(blue,0);
+    delay(300);
+    analogWrite(red,160);
+    analogWrite(green,255);
+    analogWrite(blue,255);
+    delay(500);
+    analogWrite(red,0);
+    analogWrite(green,0);
+    analogWrite(blue,0);
+    delay(300);
+    analogWrite(red,  red_loc);
+    analogWrite(green,green_loc);
+    analogWrite(blue, blue_loc);
+    
+    bridge1.virtualWrite(V2, red_loc); // Sends 1 value to BLYNK_WRITE(V2) handler on receiving side.
+  	bridge1.virtualWrite(V3, green_loc);
+  	bridge1.virtualWrite(V4, blue_loc);
+    Serial.println("setLamp2Color...");
+    lamp2TriggerVal = false;
+  }
+}
+
+/**********************************************************
+ * Function Name: thingspeakUpdateForOtherLamp
+ * Functionality: Detect gesture
+ * Notes        :
+***********************************************************/
+void gestureDetect()
+{
+  lamp2TriggerVal = true;
 }
 
 /**********************************************************
@@ -296,6 +356,7 @@ void handleGesture()
   if(gesture == APDS9960_UP)
   {
     Serial.println("^");
+	gestureDetect();
   }
   if(gesture == APDS9960_LEFT)
   {
@@ -313,11 +374,11 @@ void handleGesture()
   if(gesture == APDS9960_RIGHT)
   {
     Serial.println(">");
-	colorIdx += 1;
-	if(colorIdx > 199)
-	{
-		colorIdx = 0;
-	}
+	  colorIdx += 1;
+	  if(colorIdx > 199)
+	  {
+	  	colorIdx = 0;
+  	}
     analogWrite(red,   (int)random_color_array[colorIdx][0]);
     analogWrite(green, (int)random_color_array[colorIdx][1]);
     analogWrite(blue,  (int)random_color_array[colorIdx][2]);
@@ -325,82 +386,12 @@ void handleGesture()
 }
 
 /**********************************************************
- * Function Name: thingspeakUpdateForOtherLamp
- * Functionality: Detect gesture and update server
+ * Function Name: BLYNK_CONNECTED
+ * Functionality: stablish bridge connection
  * Notes        :
 ***********************************************************/
-void thingspeakUpdateForOtherLamp()
-{
-  int red_loc, green_loc, blue_loc;
-  if(apds.readProximity()>15)
-  {
-    handcount++;
-    if(handcount>200)
-    {
-      apds.enableProximity(false);
-      red_loc   = pulseIn(red, HIGH);
-      green_loc = pulseIn(green, HIGH);
-      blue_loc  = pulseIn(blue, HIGH);
-      Serial.println("RGB read value:");
-      Serial.println(red_loc);
-      Serial.println(green_loc);
-      Serial.println(blue_loc);
-      analogWrite(red,160);
-      analogWrite(green,255);
-      analogWrite(blue,255);
-
-	  Serial.println("Send data to server...");
-       //---------------------------------------------------------------------
-       //Connect to host, host(web site) is define at top
-       if(!client.connect(host, httpPort)){
-         Serial.println("Connection Failed");
-         delay(300);
-         return; //Keep retrying until we get connected
-       }
-
-      //---------------------------------------------------------------------
-        //Make GET request as pet HTTP GET Protocol format
-        String ADCData;
-        int Datatosend = 1;
-        ADCData = String(Datatosend);   //String to interger conversion
-        String Link="GET /update?api_key="+APIreadkey_str+"&field1=";  //Requeste webpage
-        Link = Link + ADCData;
-        Link = Link + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "Connection: close\r\n\r\n";
-        client.print(Link);
-        delay(100);
-
-      //---------------------------------------------------------------------
-       //Wait for server to respond with timeout of 5 Seconds
-       int timeout=0;
-       while((!client.available()) && (timeout < 1000))     //Wait 5 seconds for data
-       {
-         delay(10);  //Use this with time out
-         timeout++;
-       }
-
-      //---------------------------------------------------------------------
-       //If data is available before time out read it.
-       if(timeout < 500)
-       {
-           while(client.available()){
-              Serial.println(client.readString()); //Response from ThingSpeak
-           }
-       }
-       else
-       {
-           Serial.println("Request timeout..");
-       }
-       apds.enableProximity(true);
-       analogWrite(red,  red_loc);
-       analogWrite(green,green_loc);
-       analogWrite(blue, blue_loc);
-       handcount=0;
-    }
-  }
-  else
-  {
-    handcount=0;
-  }
+BLYNK_CONNECTED() {
+  bridge1.setAuthToken("jHXXwo1UFze-idCneKHAEKmF2T_H4RC2"); // Place the AuthToken of Lamp-2
 }
 
 /**********************************************************
@@ -416,7 +407,7 @@ void setup()
     Serial.println("HTTP server:" + WiFi.localIP().toString());
   }
   Blynk.begin(auth, ssid, pass);
-
+  while (Blynk.connect() == false){}
   analogWrite(red,rcount);
   analogWrite(green,gcount);
   analogWrite(blue,bcount);
@@ -430,11 +421,10 @@ void setup()
   }
   else Serial.println("Gesture initialized!");
 
-  //gesture mode will be entered once proximity mode senses something close
-  apds.enableProximity(true);
   apds.enableGesture(true);
   ThingSpeak.begin(client);
   colorIdx = random(0, 200);
+  timer.setInterval(5000L, setLamp2Color);
   delay(10000);
 }
 
@@ -449,6 +439,7 @@ void loop()
   greenbutton = digitalRead(gButton);
   bluebutton = digitalRead(bButton);
   Blynk.run();
+  timer.run();
   Portal.handleClient();
   /*if (redbutton == HIGH) // Read Red touch sensor
   {
@@ -491,11 +482,11 @@ void loop()
     time_now=millis();
     mapColor(0,50,(int)getweather());
   }
-  if (millis()>time_now2+20000)
+  /*if (millis()>time_now2+20000)
   {
     time_now2=millis();
-    RetrieveTSChannelData();
-  }
+    //RetrieveTSChannelData();
+  }*/
   handleGesture();
-  thingspeakUpdateForOtherLamp();
+  gestureDetect();
 }

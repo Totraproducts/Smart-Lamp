@@ -28,16 +28,21 @@
 #define green D7
 #define blue D6
 
+#define pingPin D1 //3  //Rx
+#define echoPin D2 //1  //Tx
+
 #define max(a,b) \
    ({ __typeof__ (a) _a = (a); \
        __typeof__ (b) _b = (b); \
      _a > _b ? _a : _b; })
 
-ESP8266WebServer Server;
-AutoConnect      Portal(Server);
-WiFiClient       client;
-WidgetBridge     bridge1(V1);              // Bridge widget on virtual pin 1
-BlynkTimer       timer;                    // Timer for blynking
+ESP8266WebServer  Server;
+AutoConnect       Portal(Server);
+WiFiClient        client;
+WidgetBridge      bridge1(V1);              // Bridge widget on virtual pin 1
+BlynkTimer        timer;                    // Timer for blynking
+AutoConnectConfig acConfig;
+
 /***************** GLOBAL VARIABLES *******************/
 
 // You should get Auth Token in the Blynk App.
@@ -61,20 +66,21 @@ unsigned long time_now2      = 0;
 unsigned long time_now3      = 0;
 const int FieldLamp1         = 1;
 const int FieldLamp2         = 2;
-static bool lamp2TriggerVal  = false;
-
+bool lamp2TriggerVal         = false;
+int colorIdx                 = 0;
+int handCount                = 0;
+int handCount2               = 0;
+bool gesturePause            = false;
 /*Virtual Ports
 
-		V0 = To set color according to weather
-		V1 = To set random Color
-		V2 = To send Red color to Lamp-2
-		V3 = To send Green color to Lamp-2
-		V4 = To send Blue color to Lamp-2
+        V0 = To set color according to weather
+        V1 = To set random Color
+        V2 = To send Red color to Lamp-2
+        V3 = To send Green color to Lamp-2
+        V4 = To send Blue color to Lamp-2
 
 */
-// defines variables for distance sensor
-long duration;
-int distance;
+/*
 const char* host                 = "api.thingspeak.com"; // ThingSpeak address
 String host_str                  = "https://api.thingspeak.com";
 unsigned long Channelno          = 875199;             // Thingspeak Read Key, works only if a PUBLIC viewable channel
@@ -83,7 +89,8 @@ String APIreadkey_str            = "LNMGX4DFAJK0MY5B";
 String Channelno_str             = "875199";
 const int httpPort               = 80;
 const unsigned long HTTP_TIMEOUT = 10000;  // max respone time from server
-int colorIdx                     = 0;
+*/
+
 
 Adafruit_APDS9960 apds;
 
@@ -96,34 +103,34 @@ const int bButton = 16;    //GPIO14 / SLCK
 /***************** RANDOM COLOR ARRAY *******************/
 unsigned char random_color_array[200][3] =  {{53, 214, 82}, {150, 44, 213}, {9, 191, 38}, {33, 8, 25}, {151, 13, 19}, {27, 209, 176},
                                              {135, 119, 36}, {72, 117, 208}, {151, 82, 194}, {31, 89, 247}, {96, 143, 147}, {65, 75, 83},
-											 {141, 253, 103}, {41, 27, 183}, {121, 4, 167}, {21, 201, 6}, {25, 230, 89}, {124, 13, 175},
-											 {55, 164, 226}, {116, 106, 162}, {61, 253, 108}, {156, 173, 221}, {9, 219, 63}, {127, 224, 224},
-											 {142, 60, 85}, {60, 240, 56}, {91, 220, 162}, {50, 242, 96}, {134, 161, 153}, {153, 238, 54},
-											 {68, 186, 6}, {128, 79, 70}, {156, 27, 96}, {42, 136, 122}, {50, 220, 65}, {69, 29, 16}, {71, 33, 254},
-											 {139, 250, 105}, {64, 117, 233}, {87, 33, 221}, {76, 18, 147}, {12, 6, 153}, {156, 144, 34},
-											 {87, 236, 83}, {116, 114, 248}, {132, 125, 185}, {158, 88, 143}, {25, 111, 168}, {150, 173, 224},
-											 {4, 232, 93}, {156, 196, 201}, {147, 135, 100}, {150, 56, 67}, {160, 245, 60}, {44, 9, 48}, {93, 82, 52},
-											 {117, 148, 93}, {59, 182, 153}, {51, 193, 55}, {41, 123, 199}, {103, 43, 36}, {6, 251, 64}, {78, 25, 77},
-											 {137, 205, 69}, {89, 181, 242}, {101, 206, 61}, {82, 166, 228}, {18, 118, 153}, {9, 131, 15}, {126, 79, 2},
-											 {55, 48, 134}, {3, 238, 15}, {137, 86, 133}, {17, 142, 191}, {122, 29, 118}, {113, 86, 59}, {148, 126, 214},
-											 {92, 95, 220}, {41, 111, 160}, {11, 107, 50}, {40, 43, 24}, {140, 198, 28}, {54, 231, 182}, {142, 82, 80},
-											 {19, 44, 239}, {136, 160, 101}, {10, 220, 214}, {130, 172, 205}, {45, 104, 115}, {8, 1, 117}, {37, 174, 32},
-											 {44, 157, 96}, {129, 243, 202}, {6, 255, 133}, {26, 155, 57}, {124, 135, 138}, {109, 75, 140}, {119, 74, 232},
-											 {14, 210, 97}, {159, 115, 244}, {147, 237, 98}, {25, 219, 102}, {92, 130, 178}, {11, 3, 159}, {58, 95, 69},
-											 {115, 114, 159}, {110, 6, 142}, {105, 50, 122}, {106, 119, 198}, {4, 102, 202}, {60, 169, 182}, {73, 138, 145},
-											 {160, 133, 28}, {148, 196, 7}, {119, 226, 105}, {47, 11, 107}, {108, 48, 9}, {118, 43, 22}, {113, 236, 116},
-											 {83, 211, 219}, {100, 59, 34}, {36, 235, 133}, {126, 240, 70}, {135, 164, 205}, {46, 246, 53}, {142, 141, 232},
-											 {117, 18, 53}, {83, 147, 3}, {42, 78, 211}, {66, 167, 163}, {78, 204, 26}, {149, 138, 130}, {40, 216, 20},
-											 {62, 114, 235}, {81, 47, 172}, {154, 182, 153}, {132, 186, 232}, {150, 91, 50}, {92, 79, 23}, {17, 115, 232},
-											 {56, 176, 53}, {38, 249, 212}, {110, 128, 42}, {57, 216, 151}, {11, 107, 124}, {79, 60, 156}, {109, 130, 67},
-											 {52, 177, 229}, {0, 60, 77}, {2, 64, 59}, {57, 184, 149}, {125, 89, 148}, {14, 165, 56}, {3, 157, 194},
-											 {81, 198, 159}, {126, 111, 94}, {57, 3, 155}, {71, 246, 136}, {118, 205, 241}, {128, 227, 149}, {121, 250, 77},
-											 {27, 10, 97}, {147, 86, 177}, {45, 182, 247}, {23, 247, 214}, {80, 66, 95}, {115, 100, 55}, {62, 144, 43},
-											 {42, 129, 141}, {68, 12, 114}, {46, 121, 89}, {53, 241, 1}, {46, 162, 48}, {79, 98, 170}, {49, 201, 103},
-											 {157, 66, 85}, {61, 37, 254}, {127, 244, 120}, {42, 155, 50}, {63, 6, 200}, {110, 199, 66}, {112, 216, 58},
-											 {76, 105, 198}, {150, 152, 72}, {115, 193, 182}, {152, 211, 238}, {116, 198, 147}, {4, 53, 51}, {138, 161, 202},
-											 {102, 211, 138}, {124, 92, 32}, {126, 86, 242}, {33, 123, 101}, {90, 180, 218}, {117, 9, 101}, {139, 94, 92},
-											 {104, 35, 84}, {19, 8, 40}, {112, 161, 102}, {135, 63, 109}};
+                                             {141, 253, 103}, {41, 27, 183}, {121, 4, 167}, {21, 201, 6}, {25, 230, 89}, {124, 13, 175},
+                                             {55, 164, 226}, {116, 106, 162}, {61, 253, 108}, {156, 173, 221}, {9, 219, 63}, {127, 224, 224},
+                                             {142, 60, 85}, {60, 240, 56}, {91, 220, 162}, {50, 242, 96}, {134, 161, 153}, {153, 238, 54},
+                                             {68, 186, 6}, {128, 79, 70}, {156, 27, 96}, {42, 136, 122}, {50, 220, 65}, {69, 29, 16}, {71, 33, 254},
+                                             {139, 250, 105}, {64, 117, 233}, {87, 33, 221}, {76, 18, 147}, {12, 6, 153}, {156, 144, 34},
+                                             {87, 236, 83}, {116, 114, 248}, {132, 125, 185}, {158, 88, 143}, {25, 111, 168}, {150, 173, 224},
+                                             {4, 232, 93}, {156, 196, 201}, {147, 135, 100}, {150, 56, 67}, {160, 245, 60}, {44, 9, 48}, {93, 82, 52},
+                                             {117, 148, 93}, {59, 182, 153}, {51, 193, 55}, {41, 123, 199}, {103, 43, 36}, {6, 251, 64}, {78, 25, 77},
+                                             {137, 205, 69}, {89, 181, 242}, {101, 206, 61}, {82, 166, 228}, {18, 118, 153}, {9, 131, 15}, {126, 79, 2},
+                                             {55, 48, 134}, {3, 238, 15}, {137, 86, 133}, {17, 142, 191}, {122, 29, 118}, {113, 86, 59}, {148, 126, 214},
+                                             {92, 95, 220}, {41, 111, 160}, {11, 107, 50}, {40, 43, 24}, {140, 198, 28}, {54, 231, 182}, {142, 82, 80},
+                                             {19, 44, 239}, {136, 160, 101}, {10, 220, 214}, {130, 172, 205}, {45, 104, 115}, {8, 1, 117}, {37, 174, 32},
+                                             {44, 157, 96}, {129, 243, 202}, {6, 255, 133}, {26, 155, 57}, {124, 135, 138}, {109, 75, 140}, {119, 74, 232},
+                                             {14, 210, 97}, {159, 115, 244}, {147, 237, 98}, {25, 219, 102}, {92, 130, 178}, {11, 3, 159}, {58, 95, 69},
+                                             {115, 114, 159}, {110, 6, 142}, {105, 50, 122}, {106, 119, 198}, {4, 102, 202}, {60, 169, 182}, {73, 138, 145},
+                                             {160, 133, 28}, {148, 196, 7}, {119, 226, 105}, {47, 11, 107}, {108, 48, 9}, {118, 43, 22}, {113, 236, 116},
+                                             {83, 211, 219}, {100, 59, 34}, {36, 235, 133}, {126, 240, 70}, {135, 164, 205}, {46, 246, 53}, {142, 141, 232},
+                                             {117, 18, 53}, {83, 147, 3}, {42, 78, 211}, {66, 167, 163}, {78, 204, 26}, {149, 138, 130}, {40, 216, 20},
+                                             {62, 114, 235}, {81, 47, 172}, {154, 182, 153}, {132, 186, 232}, {150, 91, 50}, {92, 79, 23}, {17, 115, 232},
+                                             {56, 176, 53}, {38, 249, 212}, {110, 128, 42}, {57, 216, 151}, {11, 107, 124}, {79, 60, 156}, {109, 130, 67},
+                                             {52, 177, 229}, {0, 60, 77}, {2, 64, 59}, {57, 184, 149}, {125, 89, 148}, {14, 165, 56}, {3, 157, 194},
+                                             {81, 198, 159}, {126, 111, 94}, {57, 3, 155}, {71, 246, 136}, {118, 205, 241}, {128, 227, 149}, {121, 250, 77},
+                                             {27, 10, 97}, {147, 86, 177}, {45, 182, 247}, {23, 247, 214}, {80, 66, 95}, {115, 100, 55}, {62, 144, 43},
+                                             {42, 129, 141}, {68, 12, 114}, {46, 121, 89}, {53, 241, 1}, {46, 162, 48}, {79, 98, 170}, {49, 201, 103},
+                                             {157, 66, 85}, {61, 37, 254}, {127, 244, 120}, {42, 155, 50}, {63, 6, 200}, {110, 199, 66}, {112, 216, 58},
+                                             {76, 105, 198}, {150, 152, 72}, {115, 193, 182}, {152, 211, 238}, {116, 198, 147}, {4, 53, 51}, {138, 161, 202},
+                                             {102, 211, 138}, {124, 92, 32}, {126, 86, 242}, {33, 123, 101}, {90, 180, 218}, {117, 9, 101}, {139, 94, 92},
+                                             {104, 35, 84}, {19, 8, 40}, {112, 161, 102}, {135, 63, 109}};
 
 /***************** STRUCTURE *******************/
 struct rgbvalue{
@@ -157,9 +164,9 @@ void mapColor(int min1, int max1, int value)
     minimum = (float)min1;
     maximum = (float)max1;
     ratio = 2 * (value-minimum) / (maximum - minimum);
-    rgb.b = (int)max(0, 255*(1 - ratio));
-    rgb.r = (int)max(0, 255*(ratio - 1));
-    rgb.g = 255 - rgb.b - rgb.r;
+    rgb.b = (int)max(0, 1023*(1 - ratio));
+    rgb.r = (int)max(0, 1023*(ratio - 1));
+    rgb.g = 1023 - rgb.b - rgb.r;
     analogWrite(red, rgb.r);
     analogWrite(green, rgb.g);
     analogWrite(blue, rgb.b);
@@ -175,8 +182,8 @@ BLYNK_WRITE(V0)
 {
   float temp;
   pinValue = param.asInt();
-  Serial.print("Weather Button value is: ");
-  Serial.println(pinValue);
+  //Serial.print("Weather Button value is: ");
+  //Serial.println(pinValue);
   if(pinValue)
   {
     time_now=0;
@@ -201,8 +208,8 @@ BLYNK_WRITE(V1)
 {
   float temp;
   pinValue_randomColor = param.asInt();
-  Serial.print("Weather Button value is: ");
-  Serial.println(pinValue_randomColor);
+  //Serial.print("Weather Button value is: ");
+  //Serial.println(pinValue_randomColor);
   if(pinValue_randomColor)
   {
     colorIdx = random(0, 200);
@@ -240,32 +247,18 @@ float getweather()
       auto error = deserializeJson(doc,payload);
       if (error)
       {
-        Serial.print(F("deserializeJson() failed with code "));
-        Serial.println(error.c_str());
+       // Serial.print(F("deserializeJson() failed with code "));
+        //Serial.println(error.c_str());
       }
       temp = doc["main"]["temp"];
       temp = temp-273.15;
-      Serial.print("Temperature: ");
-      Serial.println(temp);
+      //Serial.print("Temperature: ");
+      //Serial.println(temp);
     }
     http.end();   //Close connection
   }
-  Serial.println(temp);
+  //Serial.println(temp);
   return temp;
-}
-
-/**********************************************************
- * Function Name: skipResponseHeaders
- * Functionality: Wait until there is some data and skip headers
- * Notes        :
-***********************************************************/
-bool skipResponseHeaders() {
-  WiFiClient client;
-  char endOfHeaders[] = "\r\n\r\n"; // HTTP headers end with an empty line
-  client.setTimeout(HTTP_TIMEOUT);
-  bool ok = client.find(endOfHeaders);
-  if (!ok) { Serial.println("No response or invalid response!"); }
-  return ok;
 }
 
 /**********************************************************
@@ -294,40 +287,35 @@ void setLamp2Color() // Here we will send HIGH or LOW once per 5 second
   // Send value to another device
   if (lamp2TriggerVal)
   {
-	  int red_loc, green_loc, blue_loc;
-   
-	  red_loc   = pulseIn(red, HIGH);
+    int red_loc, green_loc, blue_loc;
+
+    red_loc   = pulseIn(red, HIGH);
     green_loc = pulseIn(green, HIGH);
     blue_loc  = pulseIn(blue, HIGH);
 
-    analogWrite(red,160);
-    analogWrite(green,255);
-    analogWrite(blue,255);
-    delay(500);
-    analogWrite(red,0);
-    analogWrite(green,0);
-    analogWrite(blue,0);
-    delay(300);
-    analogWrite(red,160);
-    analogWrite(green,255);
-    analogWrite(blue,255);
-    delay(500);
-    analogWrite(red,0);
-    analogWrite(green,0);
-    analogWrite(blue,0);
-    delay(300);
-    analogWrite(red,  red_loc);
-    analogWrite(green,green_loc);
-    analogWrite(blue, blue_loc);
-    
     bridge1.virtualWrite(V2, red_loc); // Sends 1 value to BLYNK_WRITE(V2) handler on receiving side.
-  	bridge1.virtualWrite(V3, green_loc);
-  	bridge1.virtualWrite(V4, blue_loc);
-    Serial.println("setLamp2Color...");
+    bridge1.virtualWrite(V3, green_loc);
+    bridge1.virtualWrite(V4, blue_loc);
+    //Serial.println("setLamp2Color...");
     lamp2TriggerVal = false;
+    gesturePause    = false;
   }
 }
 
+/**********************************************************
+ * Function Name: colorGlowState
+ * Functionality: Identify whether light is glow or not
+ * Notes        :
+***********************************************************/
+bool colorGlowState()
+{
+   int red_loc, green_loc, blue_loc;
+   red_loc   = pulseIn(red, HIGH);
+   green_loc = pulseIn(green, HIGH);
+   blue_loc  = pulseIn(blue, HIGH);
+   if((red_loc==0)||(green_loc==0)||(blue_loc==0)) return true;
+   else return false;
+}
 /**********************************************************
  * Function Name: thingspeakUpdateForOtherLamp
  * Functionality: Detect gesture
@@ -335,7 +323,30 @@ void setLamp2Color() // Here we will send HIGH or LOW once per 5 second
 ***********************************************************/
 void gestureDetect()
 {
-  lamp2TriggerVal = true;
+    int red_loc, green_loc, blue_loc;
+
+    red_loc   = pulseIn(red, HIGH);
+    green_loc = pulseIn(green, HIGH);
+    blue_loc  = pulseIn(blue, HIGH);
+
+    analogWrite(red,0);
+    analogWrite(green,0);
+    analogWrite(blue,0);
+    delay(300);
+    analogWrite(red,160);
+    analogWrite(green,255);
+    analogWrite(blue,255);
+    delay(300);
+    analogWrite(red,0);
+    analogWrite(green,0);
+    analogWrite(blue,0);
+    delay(300);
+    analogWrite(red,  red_loc);
+    analogWrite(green,green_loc);
+    analogWrite(blue, blue_loc);
+
+    lamp2TriggerVal = true;
+    gesturePause    = true;
 }
 
 /**********************************************************
@@ -351,21 +362,21 @@ void handleGesture()
   //Serial.println("Function done!");
   if(gesture == APDS9960_DOWN)
   {
-    Serial.println("v");
+    //Serial.println("v");
   }
   if(gesture == APDS9960_UP)
   {
-    Serial.println("^");
-	gestureDetect();
+    //Serial.println("^");
+    gestureDetect();
   }
   if(gesture == APDS9960_LEFT)
   {
-    Serial.println("<");
+    //Serial.println("<");
     colorIdx -= 1;
-	if(colorIdx < 0)
-	{
-		colorIdx = 199;
-	}
+    if(colorIdx < 0)
+    {
+        colorIdx = 199;
+    }
     analogWrite(red,   (int)random_color_array[colorIdx][0]);
     analogWrite(green, (int)random_color_array[colorIdx][1]);
     analogWrite(blue,  (int)random_color_array[colorIdx][2]);
@@ -373,16 +384,75 @@ void handleGesture()
   }
   if(gesture == APDS9960_RIGHT)
   {
-    Serial.println(">");
-	  colorIdx += 1;
-	  if(colorIdx > 199)
-	  {
-	  	colorIdx = 0;
-  	}
+    //Serial.println(">");
+      colorIdx += 1;
+      if(colorIdx > 199)
+      {
+        colorIdx = 0;
+    }
     analogWrite(red,   (int)random_color_array[colorIdx][0]);
     analogWrite(green, (int)random_color_array[colorIdx][1]);
     analogWrite(blue,  (int)random_color_array[colorIdx][2]);
   }
+}
+
+/**********************************************************
+ * Function Name: microsecondsToCentimeters
+ * Functionality: convert time to distance(cm)
+ * Notes        :
+***********************************************************/
+long microsecondsToCentimeters(long microseconds) {
+   return microseconds / 29 / 2;
+}
+
+/**********************************************************
+ * Function Name: handleGestureUS
+ * Functionality: hand gesture prediction fuction with ultrasonic
+ * Notes        :
+***********************************************************/
+void handleGestureUS()
+{
+   long duration, cm;
+   pinMode(pingPin, OUTPUT);
+   digitalWrite(pingPin, LOW);
+   delayMicroseconds(2);
+   digitalWrite(pingPin, HIGH);
+   delayMicroseconds(10);
+   digitalWrite(pingPin, LOW);
+   pinMode(echoPin, INPUT);
+   duration = pulseIn(echoPin, HIGH);
+   cm = microsecondsToCentimeters(duration);
+   if(cm > 40) cm = -1;
+   if((cm >= 1)&&(cm <= 10)&&(!gesturePause))
+   {
+    //Serial.println(handCount);
+      handCount ++;
+      if(handCount>=200)
+      {
+        //Serial.println("Set other lamp...");
+        gestureDetect();
+        handCount = 0;
+      }
+   }
+   else
+   {
+      handCount = 0;
+   }
+   if(cm > 10)
+   {
+      handCount2++;
+      if(handCount2 >= 200)
+      {
+         analogWrite(red,   random(0, 460));
+         analogWrite(green, random(0, 1024));
+         analogWrite(blue,  random(0, 1024));
+         delay(1000);
+      }
+   }
+   if(cm == -1)
+   {
+      handCount2 = 0;
+   }
 }
 
 /**********************************************************
@@ -401,10 +471,12 @@ BLYNK_CONNECTED() {
 ***********************************************************/
 void setup()
 {
-  Serial.begin(9600);
+  //Serial.begin(9600);
   Server.on("/", rootPage);
+  acConfig.psk = "totra";
+  Portal.config(acConfig);
   if (Portal.begin()) {
-    Serial.println("HTTP server:" + WiFi.localIP().toString());
+    //Serial.println("HTTP server:" + WiFi.localIP().toString());
   }
   Blynk.begin(auth, ssid, pass);
   while (Blynk.connect() == false){}
@@ -416,13 +488,14 @@ void setup()
   pinMode(gButton, INPUT);
   pinMode(bButton, INPUT);
 
+  /*
   if(!apds.begin()){
     Serial.println("failed to initialize device! Please check your wiring.");
   }
   else Serial.println("Gesture initialized!");
-
-  apds.enableGesture(true);
-  ThingSpeak.begin(client);
+  */
+  //apds.enableGesture(true);
+  //ThingSpeak.begin(client);
   colorIdx = random(0, 200);
   timer.setInterval(5000L, setLamp2Color);
   delay(10000);
@@ -473,8 +546,8 @@ void loop()
         bcount = 0;
      }
      analogWrite(blue,bcount);
-     Serial.print("Blue Value: ");
-     Serial.println(bcount);
+     //Serial.print("Blue Value: ");
+     //Serial.println(bcount);
      delay(500);
   }
   if ((pinValue) && (millis()>time_now+900000))
@@ -487,6 +560,8 @@ void loop()
     time_now2=millis();
     //RetrieveTSChannelData();
   }*/
-  handleGesture();
-  gestureDetect();
+  if(colorGlowState)
+  {
+    handleGestureUS();
+  }
 }

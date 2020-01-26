@@ -10,8 +10,8 @@
 
 /***************** INCLUDES *******************/
 
+#include <Arduino.h>
 #include "Adafruit_APDS9960.h"
-#include <ArduinoJson.h>
 #include <ESP8266WebServer.h>
 #include <AutoConnect.h>
 #include <ESP8266WiFi.h>
@@ -20,6 +20,10 @@
 #include <Wire.h>
 #include <ThingSpeak.h>
 
+#include <ESP8266WiFiMulti.h>
+#include <WebSocketsClient.h> //  https://github.com/kakopappa/sinric/wiki/How-to-add-dependency-libraries
+#include <ArduinoJson.h> // https://github.com/kakopappa/sinric/wiki/How-to-add-dependency-libraries
+#include <StreamString.h>
 
 /***************** MACROS *******************/
 
@@ -35,6 +39,9 @@
    ({ __typeof__ (a) _a = (a); \
        __typeof__ (b) _b = (b); \
      _a > _b ? _a : _b; })
+	 
+#define MyApiKey "538d6c48-dd8e-4a62-8a77-85ac9e56ebf2" // TODO: Change to your sinric API Key. Your API Key is displayed on sinric.com dashboard
+#define HEARTBEAT_INTERVAL 300000 // 5 Minutes 
 
 ESP8266WebServer  Server;
 AutoConnect       Portal(Server);
@@ -42,6 +49,8 @@ WiFiClient        client;
 WidgetBridge      bridge1(V1);              // Bridge widget on virtual pin 1
 BlynkTimer        timer;                    // Timer for blynking
 AutoConnectConfig acConfig;
+ESP8266WiFiMulti  WiFiMulti;
+WebSocketsClient  webSocket;
 
 /***************** GLOBAL VARIABLES *******************/
 
@@ -71,6 +80,9 @@ int colorIdx                 = 0;
 int handCount                = 0;
 int handCount2               = 0;
 bool gesturePause            = false;
+uint64_t heartbeatTimestamp  = 0;
+bool isConnected             = false;
+
 /*Virtual Ports
 
         V0 = To set color according to weather
@@ -80,17 +92,6 @@ bool gesturePause            = false;
         V4 = To send Blue color to Lamp-2
 
 */
-/*
-const char* host                 = "api.thingspeak.com"; // ThingSpeak address
-String host_str                  = "https://api.thingspeak.com";
-unsigned long Channelno          = 875199;             // Thingspeak Read Key, works only if a PUBLIC viewable channel
-const char * APIreadkey          = "LNMGX4DFAJK0MY5B";   // Thingspeak Read Key, works only if a PUBLIC viewable channel
-String APIreadkey_str            = "LNMGX4DFAJK0MY5B";
-String Channelno_str             = "875199";
-const int httpPort               = 80;
-const unsigned long HTTP_TIMEOUT = 10000;  // max respone time from server
-*/
-
 
 Adafruit_APDS9960 apds;
 
@@ -456,6 +457,98 @@ void handleGestureUS()
 }
 
 /**********************************************************
+ * Function Name: googleTurnOn
+ * Functionality: turn on lamp with google home
+ * Notes        :
+***********************************************************/
+void googleTurnOn(String deviceId) 
+{
+  if (deviceId == "5e2474200c04793a3a801f5b") // Device ID of first device
+  {  
+    //Serial.print("Turn on device id: ");
+    //Serial.println(deviceId);
+ 	analogWrite(red,   random(0, 460));
+    analogWrite(green, random(0, 1024));
+    analogWrite(blue,  random(0, 1024));
+  }     
+}
+
+/**********************************************************
+ * Function Name: googleTurnOff
+ * Functionality: turn off lamp with google home
+ * Notes        :
+***********************************************************/
+void googleTurnOff(String deviceId) 
+{
+   if (deviceId == "5e2474200c04793a3a801f5b") // Device ID of first device
+   {  
+     //Serial.print("Turn off Device ID: ");
+     //Serial.println(deviceId);
+	 analogWrite(red,   0);
+     analogWrite(green, 0);
+     analogWrite(blue,  0);
+   }  
+}
+
+/**********************************************************
+ * Function Name: webSocketEvent
+ * Functionality: connect with https://sinric.com/
+ * Notes        :
+***********************************************************/
+void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
+  switch(type) {
+    case WStype_DISCONNECTED:
+      isConnected = false;    
+      //Serial.printf("[WSc] Webservice disconnected from sinric.com!\n");
+      break;
+    case WStype_CONNECTED: {
+      isConnected = true;
+      //Serial.printf("[WSc] Service connected to sinric.com at url: %s\n", payload);
+      //Serial.printf("Waiting for commands from sinric.com ...\n");        
+      }
+      break;
+    case WStype_TEXT: {
+        //Serial.printf("[WSc] get text: %s\n", payload);
+        // Example payloads
+
+        // For Switch  types
+        // {"deviceId":"xxx","action":"action.devices.commands.OnOff","value":{"on":true}} // https://developers.google.com/actions/smarthome/traits/onoff
+        // {"deviceId":"xxx","action":"action.devices.commands.OnOff","value":{"on":false}}
+
+#if ARDUINOJSON_VERSION_MAJOR == 5
+        DynamicJsonBuffer jsonBuffer;
+        JsonObject& json = jsonBuffer.parseObject((char*)payload);
+#endif
+#if ARDUINOJSON_VERSION_MAJOR == 6        
+        DynamicJsonDocument json(1024);
+        deserializeJson(json, (char*) payload);      
+#endif        
+        String deviceId = json ["deviceId"];     
+        String action = json ["action"];
+        
+        if(action == "action.devices.commands.OnOff") { // Switch 
+            String value = json ["value"]["on"];
+            //Serial.println(value); 
+            
+            if(value == "true") {
+                googleTurnOn(deviceId);
+            } else {
+                googleTurnOff(deviceId);
+            }
+        }
+        else if (action == "test") {
+            //Serial.println("[WSc] received test command from sinric.com");
+        }
+      }
+      break;
+    case WStype_BIN:
+      //Serial.printf("[WSc] get binary length: %u\n", length);
+      break;
+    default: break;
+  }
+}
+
+/**********************************************************
  * Function Name: BLYNK_CONNECTED
  * Functionality: stablish bridge connection
  * Notes        :
@@ -498,6 +591,17 @@ void setup()
   //ThingSpeak.begin(client);
   colorIdx = random(0, 200);
   timer.setInterval(5000L, setLamp2Color);
+  
+  // server address, port and URL
+  webSocket.begin("iot.sinric.com", 80, "/"); //"iot.sinric.com", 80
+
+  // event handler
+  webSocket.onEvent(webSocketEvent);
+  webSocket.setAuthorization("apikey", MyApiKey);
+  
+  // try again every 5000ms if connection has failed
+  webSocket.setReconnectInterval(5000);   // If you see 'class WebSocketsClient' has no member named 'setReconnectInterval' error update arduinoWebSockets
+  
   delay(10000);
 }
 
@@ -555,13 +659,23 @@ void loop()
     time_now=millis();
     mapColor(0,50,(int)getweather());
   }
-  /*if (millis()>time_now2+20000)
-  {
-    time_now2=millis();
-    //RetrieveTSChannelData();
-  }*/
+
   if(colorGlowState)
   {
     handleGestureUS();
   }
+  
+  //Google home Sync code
+  webSocket.loop();
+  if(isConnected) 
+  {
+    uint64_t now = millis();
+      
+    // Send heartbeat in order to avoid disconnections during ISP resetting IPs over night.
+    if((now - heartbeatTimestamp) > HEARTBEAT_INTERVAL)
+	{
+       heartbeatTimestamp = now;
+       webSocket.sendTXT("H");          
+    }
+  }  
 }

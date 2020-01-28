@@ -19,7 +19,9 @@
 #include <esp8266httpclient.h>
 #include <Wire.h>
 #include <ThingSpeak.h>
-
+#include <WiFiUdp.h>
+#include <U8g2lib.h>
+#include <NTPClient.h>
 #include <ESP8266WiFiMulti.h>
 #include <WebSocketsClient.h> //  https://github.com/kakopappa/sinric/wiki/How-to-add-dependency-libraries
 #include <ArduinoJson.h> // https://github.com/kakopappa/sinric/wiki/How-to-add-dependency-libraries
@@ -32,16 +34,16 @@
 #define green D7
 #define blue D6
 
-#define pingPin D1 //3  //Rx
-#define echoPin D2 //1  //Tx
+#define pingPin 3  //Rx
+#define echoPin 1  //Tx
 
 #define max(a,b) \
    ({ __typeof__ (a) _a = (a); \
        __typeof__ (b) _b = (b); \
      _a > _b ? _a : _b; })
-	 
+
 #define MyApiKey "538d6c48-dd8e-4a62-8a77-85ac9e56ebf2" // TODO: Change to your sinric API Key. Your API Key is displayed on sinric.com dashboard
-#define HEARTBEAT_INTERVAL 300000 // 5 Minutes 
+#define HEARTBEAT_INTERVAL 300000 // 5 Minutes
 
 ESP8266WebServer  Server;
 AutoConnect       Portal(Server);
@@ -51,6 +53,12 @@ BlynkTimer        timer;                    // Timer for blynking
 AutoConnectConfig acConfig;
 ESP8266WiFiMulti  WiFiMulti;
 WebSocketsClient  webSocket;
+
+// Define NTP Client to get time
+WiFiUDP           ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", 19800,60000);
+
+U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0);
 
 /***************** GLOBAL VARIABLES *******************/
 
@@ -71,8 +79,7 @@ int bluebutton               = 0;
 int pinValue                 = 0;
 int pinValue_randomColor     = 0;
 unsigned long time_now       = 0;
-unsigned long time_now2      = 0;
-unsigned long time_now3      = 0;
+unsigned long time_clock      = 0;
 const int FieldLamp1         = 1;
 const int FieldLamp2         = 2;
 bool lamp2TriggerVal         = false;
@@ -461,16 +468,16 @@ void handleGestureUS()
  * Functionality: turn on lamp with google home
  * Notes        :
 ***********************************************************/
-void googleTurnOn(String deviceId) 
+void googleTurnOn(String deviceId)
 {
   if (deviceId == "5e2474200c04793a3a801f5b") // Device ID of first device
-  {  
+  {
     //Serial.print("Turn on device id: ");
     //Serial.println(deviceId);
- 	analogWrite(red,   random(0, 460));
+    analogWrite(red,   random(0, 460));
     analogWrite(green, random(0, 1024));
     analogWrite(blue,  random(0, 1024));
-  }     
+  }
 }
 
 /**********************************************************
@@ -478,16 +485,16 @@ void googleTurnOn(String deviceId)
  * Functionality: turn off lamp with google home
  * Notes        :
 ***********************************************************/
-void googleTurnOff(String deviceId) 
+void googleTurnOff(String deviceId)
 {
    if (deviceId == "5e2474200c04793a3a801f5b") // Device ID of first device
-   {  
+   {
      //Serial.print("Turn off Device ID: ");
      //Serial.println(deviceId);
-	 analogWrite(red,   0);
+     analogWrite(red,   0);
      analogWrite(green, 0);
      analogWrite(blue,  0);
-   }  
+   }
 }
 
 /**********************************************************
@@ -498,13 +505,13 @@ void googleTurnOff(String deviceId)
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
   switch(type) {
     case WStype_DISCONNECTED:
-      isConnected = false;    
+      isConnected = false;
       //Serial.printf("[WSc] Webservice disconnected from sinric.com!\n");
       break;
     case WStype_CONNECTED: {
       isConnected = true;
       //Serial.printf("[WSc] Service connected to sinric.com at url: %s\n", payload);
-      //Serial.printf("Waiting for commands from sinric.com ...\n");        
+      //Serial.printf("Waiting for commands from sinric.com ...\n");
       }
       break;
     case WStype_TEXT: {
@@ -519,17 +526,17 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
         DynamicJsonBuffer jsonBuffer;
         JsonObject& json = jsonBuffer.parseObject((char*)payload);
 #endif
-#if ARDUINOJSON_VERSION_MAJOR == 6        
+#if ARDUINOJSON_VERSION_MAJOR == 6
         DynamicJsonDocument json(1024);
-        deserializeJson(json, (char*) payload);      
-#endif        
-        String deviceId = json ["deviceId"];     
+        deserializeJson(json, (char*) payload);
+#endif
+        String deviceId = json ["deviceId"];
         String action = json ["action"];
-        
-        if(action == "action.devices.commands.OnOff") { // Switch 
+
+        if(action == "action.devices.commands.OnOff") { // Switch
             String value = json ["value"]["on"];
-            //Serial.println(value); 
-            
+            //Serial.println(value);
+
             if(value == "true") {
                 googleTurnOn(deviceId);
             } else {
@@ -546,6 +553,53 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
       break;
     default: break;
   }
+}
+
+/**********************************************************
+ * Function Name: dispLogo
+ * Functionality: Display TOTRA on Oled Display
+ * Notes        :
+***********************************************************/
+void dispLogo()
+{
+  u8g2.setFont(u8g2_font_ncenB18_tr);
+  u8g2.firstPage();
+  do {
+    u8g2.setCursor(16, 25);
+    u8g2.print(F("TOTRA"));
+    u8g2.drawFrame(0,0,u8g2.getDisplayWidth(),u8g2.getDisplayHeight() );
+  } while ( u8g2.nextPage() );
+}
+
+/**********************************************************
+ * Function Name: dispTimeTemp
+ * Functionality: Display Time and temperatute on OLED Display
+ * Notes        :
+***********************************************************/
+void dispTimeTemp()
+{
+  char h_str[3];
+  char m_str[3],s_temp[3],day[9];
+  int  temp;
+  timeClient.update();
+  strcpy(m_str, u8x8_u8toa(timeClient.getMinutes(), 2));    /* convert m to a string with two digits */
+  strcpy(h_str, u8x8_u8toa(timeClient.getHours(), 2));
+  temp = (int)getweather();
+  strcpy(s_temp, u8x8_u8toa(temp, 2));
+  u8g2.firstPage();
+  do {
+    u8g2.setFont(u8g2_font_logisoso22_tn);
+    u8g2.drawStr(5,27,h_str);
+    u8g2.drawStr(35,27,":");
+    u8g2.drawStr(46,27,m_str);
+    u8g2.setFont(u8g2_font_ncenB12_tr);
+    u8g2.drawStr(86,27,s_temp);
+    u8g2.setCursor(110, 27);
+    u8g2.print(F("'C"));
+    u8g2.setFont(u8g2_font_ncenB08_tr);
+    u8g2.setCursor(86, 9);
+    u8g2.print(F(" Rahul"));
+  } while ( u8g2.nextPage() );
 }
 
 /**********************************************************
@@ -581,6 +635,9 @@ void setup()
   pinMode(gButton, INPUT);
   pinMode(bButton, INPUT);
 
+  timeClient.begin();
+  u8g2.begin();
+  dispLogo();
   /*
   if(!apds.begin()){
     Serial.println("failed to initialize device! Please check your wiring.");
@@ -591,18 +648,20 @@ void setup()
   //ThingSpeak.begin(client);
   colorIdx = random(0, 200);
   timer.setInterval(5000L, setLamp2Color);
-  
+
   // server address, port and URL
   webSocket.begin("iot.sinric.com", 80, "/"); //"iot.sinric.com", 80
 
   // event handler
   webSocket.onEvent(webSocketEvent);
   webSocket.setAuthorization("apikey", MyApiKey);
-  
+
   // try again every 5000ms if connection has failed
   webSocket.setReconnectInterval(5000);   // If you see 'class WebSocketsClient' has no member named 'setReconnectInterval' error update arduinoWebSockets
-  
+
   delay(10000);
+  u8g2.clearBuffer();
+  dispTimeTemp();
 }
 
 /**********************************************************
@@ -628,7 +687,7 @@ void loop()
      analogWrite(red,rcount);
      Serial.print("Red Value: ");
      Serial.println(rcount);
-     delay(500);
+     delay(300);
   }*/
   /*if (greenbutton == HIGH) // Read Green touch sensor
   {
@@ -640,7 +699,7 @@ void loop()
      analogWrite(green,gcount);
      Serial.print("Green Value: ");
      Serial.println(gcount);
-     delay(500);
+     delay(300);
   }*/
   if (bluebutton == HIGH) // Read Blue touch sensor
   {
@@ -652,7 +711,7 @@ void loop()
      analogWrite(blue,bcount);
      //Serial.print("Blue Value: ");
      //Serial.println(bcount);
-     delay(500);
+     delay(300);
   }
   if ((pinValue) && (millis()>time_now+900000))
   {
@@ -664,18 +723,23 @@ void loop()
   {
     handleGestureUS();
   }
-  
+
   //Google home Sync code
   webSocket.loop();
-  if(isConnected) 
+  if(isConnected)
   {
     uint64_t now = millis();
-      
+
     // Send heartbeat in order to avoid disconnections during ISP resetting IPs over night.
     if((now - heartbeatTimestamp) > HEARTBEAT_INTERVAL)
-	{
+      {
        heartbeatTimestamp = now;
-       webSocket.sendTXT("H");          
+       webSocket.sendTXT("H");
     }
-  }  
+  }
+  if (millis()>time_clock+60000)
+  {
+     time_clock=millis();
+     dispTimeTemp();
+  }
 }

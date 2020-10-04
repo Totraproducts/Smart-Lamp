@@ -105,7 +105,7 @@ Adafruit_APDS9960 apds;
 /***************** GPIO PIN DEFINES *******************/
 
 const int rButton = 14;   //GPIO2 / TxD1
-const int gButton = 0;    //GPIO0 / D3
+const int gButton = 2;    //GPIO0 / D3
 const int bButton = 16;    //GPIO14 / SLCK
 
 /***************** RANDOM COLOR ARRAY *******************/
@@ -245,7 +245,7 @@ float getweather()
     StaticJsonDocument<1024> doc;
     HTTPClient http;  //Declare an object of class HTTPClient
 
-    http.begin("http://api.openweathermap.org/data/2.5/weather?q=New%20Delhi&APPID=d634395ad4513eafb0d9507bc2ba5eb8");  //Specify request destination
+    http.begin(client, "http://api.openweathermap.org/data/2.5/weather?q=New%20Delhi&APPID=d634395ad4513eafb0d9507bc2ba5eb8");  //Specify request destination
     int httpCode = http.GET();                                                                  //Send the request
     if (httpCode > 0)
     { //Check the returning code
@@ -506,7 +506,7 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
   switch(type) {
     case WStype_DISCONNECTED:
       isConnected = false;
-      //Serial.printf("[WSc] Webservice disconnected from sinric.com!\n");
+      //Serial.println("[WSc] Webservice disconnected from sinric.com!\n");
       break;
     case WStype_CONNECTED: {
       isConnected = true;
@@ -644,8 +644,6 @@ void setup()
   }
   else Serial.println("Gesture initialized!");
   */
-  //apds.enableGesture(true);
-  //ThingSpeak.begin(client);
   colorIdx = random(0, 200);
   timer.setInterval(5000L, setLamp2Color);
 
@@ -677,34 +675,34 @@ void loop()
   Blynk.run();
   timer.run();
   Portal.handleClient();
-  /*if (redbutton == HIGH) // Read Red touch sensor
+  if (redbutton == HIGH) // Read Red touch sensor
   {
      rcount+=40;
-     if (rcount > 1023)
+     if (rcount > 512)
      {
         rcount = 0;
      }
      analogWrite(red,rcount);
-     Serial.print("Red Value: ");
-     Serial.println(rcount);
+     //Serial.print("Red Value: ");
+     //Serial.println(rcount);
      delay(300);
-  }*/
-  /*if (greenbutton == HIGH) // Read Green touch sensor
+  }
+  if (greenbutton == HIGH) // Read Green touch sensor
   {
-     gcount+=40;
+     gcount+=80;
      if (gcount > 1023)
      {
         gcount = 0;
      }
      analogWrite(green,gcount);
-     Serial.print("Green Value: ");
-     Serial.println(gcount);
+     //Serial.print("Green Value: ");
+     //Serial.println(gcount);
      delay(300);
-  }*/
+  }
   if (bluebutton == HIGH) // Read Blue touch sensor
   {
      bcount+=40;
-     if (bcount > 1023)
+     if (bcount > 512)
      {
         bcount = 0;
      }

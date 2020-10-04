@@ -644,6 +644,9 @@ void setup()
   }
   else Serial.println("Gesture initialized!");
   */
+  //apds.enableGesture(true);
+  //ThingSpeak.begin(client);
+
   colorIdx = random(0, 200);
   timer.setInterval(5000L, setLamp2Color);
 

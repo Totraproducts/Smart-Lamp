@@ -331,23 +331,17 @@ void loop() {
         }
         else if (RxValueArr[7] == 2)            // LEFT
         {
-          if (colorGlowState())
-          {
-            Serial.println("LEFT GESTURE DETECTED");
-            analogWrite(red,   (int)random(0, 1023));
-            analogWrite(green, (int)random(0, 1023));
-            analogWrite(blue,  (int)random(0, 1023));
-          }
+          Serial.println("LEFT GESTURE DETECTED");
+          analogWrite(red,   (int)random(0, 1023));
+          analogWrite(green, (int)random(0, 1023));
+          analogWrite(blue,  (int)random(0, 1023));
         }
         else if (RxValueArr[7] == 3)            // RIGHT
         {
-          if(colorGlowState())
-          {
-            Serial.println("RIGHT GESTURE DETECTED");
-            analogWrite(red,   (int)random(0, 1023));
-            analogWrite(green, (int)random(0, 1023));
-            analogWrite(blue,  (int)random(0, 1023));
-          }
+          Serial.println("RIGHT GESTURE DETECTED");
+          analogWrite(red,   (int)random(0, 1023));
+          analogWrite(green, (int)random(0, 1023));
+          analogWrite(blue,  (int)random(0, 1023));
         }
       }
       RxData = "";

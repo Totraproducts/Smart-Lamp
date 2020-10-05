@@ -30,8 +30,8 @@ void sendTxMessage(int code)
  * 2 - Gesture Trigger
  *     0 - UP
  *     1 - DOWN
- *     3 - LEFT
- *     4 - RIGHT 
+ *     2 - LEFT
+ *     3 - RIGHT 
  */
  
   String TxData;

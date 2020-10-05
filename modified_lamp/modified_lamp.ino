@@ -276,6 +276,8 @@ void setup() {
     u8g2.begin();
     u8g2.clearBuffer();
     dispLogo();
+    delay(6000);
+    dispTimeTemp();
 }
 
 void loop() {
@@ -332,16 +334,16 @@ void loop() {
         else if (RxValueArr[7] == 2)            // LEFT
         {
           Serial.println("LEFT GESTURE DETECTED");
-          analogWrite(red,   (int)random(0, 1023));
-          analogWrite(green, (int)random(0, 1023));
-          analogWrite(blue,  (int)random(0, 1023));
+          analogWrite(red,  RxValueArr[4]);
+          analogWrite(green,RxValueArr[5]);
+          analogWrite(blue, RxValueArr[6]);
         }
         else if (RxValueArr[7] == 3)            // RIGHT
         {
           Serial.println("RIGHT GESTURE DETECTED");
-          analogWrite(red,   (int)random(0, 1023));
-          analogWrite(green, (int)random(0, 1023));
-          analogWrite(blue,  (int)random(0, 1023));
+          analogWrite(red,  RxValueArr[4]);
+          analogWrite(green,RxValueArr[5]);
+          analogWrite(blue, RxValueArr[6]);
         }
       }
       RxData = "";

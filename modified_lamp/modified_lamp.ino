@@ -209,6 +209,86 @@ void dispLogo()
 }
 
 /**********************************************************
+ * Function Name: dispGesture
+ * Functionality: Display Gesture on Oled Display
+ * Notes        :
+***********************************************************/
+void dispGesture(int val)
+{
+  u8g2.setFont(u8g2_font_ncenB18_tr);
+  u8g2.firstPage();
+  do {
+    if(val == 0)
+    {
+      u8g2.setCursor(16, 25);
+      u8g2.print(F("    ON"));
+    }
+    else if(val == 1)
+    {
+      u8g2.setCursor(16, 25);
+      u8g2.print(F("   OFF"));
+    }
+    else if(val == 3)
+    {
+      u8g2.drawLine(54, 14, 74, 14);
+      u8g2.drawLine(54, 15, 74, 15);
+      u8g2.drawLine(54, 16, 74, 16);
+      
+      u8g2.drawLine(64, 8,  75, 17);
+      u8g2.drawLine(65, 7,  76, 16);
+      u8g2.drawLine(66, 6,  77, 15);
+  
+      u8g2.drawLine(64, 22, 75, 15);
+      u8g2.drawLine(65, 23, 76, 16);
+      u8g2.drawLine(66, 24, 77, 17);
+    }
+    else if(val == 2)
+    {
+      u8g2.drawLine(54, 14, 74, 14);
+      u8g2.drawLine(54, 15, 74, 15);
+      u8g2.drawLine(54, 16, 74, 16);
+
+      u8g2.drawLine(64, 6,  52, 15);
+      u8g2.drawLine(65, 7,  53, 15);
+      u8g2.drawLine(63, 5,  50, 15);
+  
+      u8g2.drawLine(64, 22, 52, 15);
+      u8g2.drawLine(63, 23, 50, 15);
+      u8g2.drawLine(65, 21, 53, 15);
+    }
+  } while ( u8g2.nextPage() );\
+  delay(2000);
+}
+
+/**********************************************************
+ * Function Name: dispTouch
+ * Functionality: Display RGB Touch value on Oled Display
+ * Notes        :
+***********************************************************/
+void dispTouch(int r, int g, int b)
+{
+  char red[3];
+  char green[3];
+  char blue[3];
+  strcpy(red,   u8x8_u8toa(r/100, 2));
+  strcpy(green, u8x8_u8toa(g/100, 2));
+  strcpy(blue,  u8x8_u8toa(b/100, 2));
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+  u8g2.firstPage();
+  do {
+    u8g2.setCursor(25, 9);
+    u8g2.print(F("  Red    : "));
+    u8g2.drawStr(85,9,red);
+    u8g2.setCursor(25, 19);
+    u8g2.print(F("  Green : "));
+    u8g2.drawStr(85,19,green);
+    u8g2.setCursor(25, 29);
+    u8g2.print(F("  Blue   : "));
+    u8g2.drawStr(85,29,blue);
+  } while ( u8g2.nextPage() );
+  delay(1000);
+}
+/**********************************************************
  * Function Name: dispTimeTemp
  * Functionality: Display Time and temperatute on OLED Display
  * Notes        :
@@ -225,6 +305,14 @@ void dispTimeTemp()
   strcpy(s_temp, u8x8_u8toa(temp, 2));
   u8g2.firstPage();
   do {
+    if((int)h_str < 7)
+    {
+      u8g2.setContrast(1);
+    }
+    else
+    {
+      u8g2.setContrast(100);
+    }
     u8g2.setFont(u8g2_font_logisoso22_tn);
     u8g2.drawStr(5,27,h_str);
     u8g2.drawStr(35,27,":");
@@ -243,6 +331,11 @@ void setup() {
     // put your setup code here, to run once:
     Serial.begin(9600);
 
+    // OLED Begin
+    u8g2.begin();
+    u8g2.clearBuffer();
+    dispLogo();
+    
     //WiFiManager
     //Local intialization. Once its business is done, there is no need to keep it around
     WiFiManager wifiManager;
@@ -272,11 +365,9 @@ void setup() {
     analogWrite(green, 0);
     analogWrite(blue,0);
     analogWriteFreq(20000);
-    
-    u8g2.begin();
+
     u8g2.clearBuffer();
-    dispLogo();
-    delay(6000);
+    delay(10000);
     dispTimeTemp();
 }
 
@@ -314,6 +405,8 @@ void loop() {
         analogWrite(red,  RxValueArr[4]);
         analogWrite(green,RxValueArr[5]);
         analogWrite(blue, RxValueArr[6]);
+        dispTouch(RxValueArr[4], RxValueArr[5], RxValueArr[6]);
+        dispTimeTemp();
       }
       else if (RxValueArr[0] == 2)         // Gesture
       { 
@@ -323,6 +416,9 @@ void loop() {
           analogWrite(red,   (int)random(0, 1023));
           analogWrite(green, (int)random(0, 1023));
           analogWrite(blue,  (int)random(0, 1023));
+          dispGesture(0);
+          dispTimeTemp();
+          
         }
         else if (RxValueArr[7] == 1)            // DOWN
         {
@@ -330,6 +426,8 @@ void loop() {
           analogWrite(red,   0);
           analogWrite(green, 0);
           analogWrite(blue,  0);
+          dispGesture(1);
+          dispTimeTemp();
         }
         else if (RxValueArr[7] == 2)            // LEFT
         {
@@ -337,6 +435,8 @@ void loop() {
           analogWrite(red,  RxValueArr[4]);
           analogWrite(green,RxValueArr[5]);
           analogWrite(blue, RxValueArr[6]);
+          dispGesture(2);
+          dispTimeTemp();
         }
         else if (RxValueArr[7] == 3)            // RIGHT
         {
@@ -344,6 +444,8 @@ void loop() {
           analogWrite(red,  RxValueArr[4]);
           analogWrite(green,RxValueArr[5]);
           analogWrite(blue, RxValueArr[6]);
+          dispGesture(3);
+          dispTimeTemp();
         }
       }
       RxData = "";

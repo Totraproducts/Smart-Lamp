@@ -1,6 +1,7 @@
 # Smart_Lamp
-## IOT based RGB lamp powered by esp8266
 
+![For Loop](https://drive.google.com/uc?export=view&id=1pKhNEhpKTEP9s6ogW-5lVDfEwQf6RmGy)
+## IOT based RGB lamp powered by esp8266
 There is need to modify Adafruit library.
 Change _**...\Arduino\libraries\Adafruit_APDS9960_Library\Adafruit_APDS9960.cpp**_ file
 

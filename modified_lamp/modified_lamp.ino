@@ -91,6 +91,14 @@ void setColor(int r, int g, int b)
   globalRed   = r;
   globalGreen = g;
   globalBlue  = b;
+  if((r==0)&&(g==0)&&(b==0))
+  {
+    lampState = false;
+  }
+  else
+  {
+    lampState = true;
+  }
 }
 
 /**********************************************************

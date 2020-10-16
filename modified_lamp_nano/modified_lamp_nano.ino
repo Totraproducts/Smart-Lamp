@@ -173,7 +173,7 @@ void loop() {
      lastUpdate = millis();
      //Serial.print("Red Value: ");
      //Serial.println(rcount);
-     delay(300);
+     delay(1000);
   }
   if (greenbutton == HIGH) // Read Green touch sensor
   {
@@ -186,7 +186,7 @@ void loop() {
      lastUpdate = millis();
      //Serial.print("Green Value: ");
      //Serial.println(gcount);
-     delay(300);
+     delay(1000);
   }
   if (bluebutton == HIGH) // Read Blue touch sensor
   {
@@ -199,6 +199,6 @@ void loop() {
      lastUpdate = millis();
      //Serial.print("Blue Value: ");
      //Serial.println(bcount);
-     delay(300);
+     delay(1000);
   }
 }

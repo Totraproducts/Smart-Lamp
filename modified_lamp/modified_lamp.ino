@@ -67,6 +67,7 @@ bool          ghomeState               = false;
 int           globalRed                = 0;
 int           globalGreen              = 0;
 int           globalBlue               = 0;
+bool          OLEDStatus               = true;
 
 // STRUCTURES
 struct rgbvalue{
@@ -531,7 +532,7 @@ void loop() {
     strt = 0;
     if (RxData.length() > 0)
     {
-      Serial.print(RxData);
+      Serial.print(RxData);                      //Code,RedSensor,greenSensor,BlueSensor,RedTouch,GreenTouch,BlueTouch,Gesture,Proximity 
       for(int i=0; i < RxData.length(); i++)
       { 
          if (RxData.substring(i, i+1) == ",")
@@ -552,7 +553,19 @@ void loop() {
       Serial.println(RxValueArr[7]);
       Serial.println(RxValueArr[8]);*/
 
-      if (RxValueArr[0] == 1)               // Touch Button
+      if (RxValueArr[0] == 0)               // RGB Data
+      {
+        if ((RxValueArr[1]==0)&&(RxValueArr[2]==0)&&(RxValueArr[3]==0))
+        {
+          OLEDStatus = false;
+        }
+        else
+        {
+          OLEDStatus = true;
+        }
+      }
+      
+      else if (RxValueArr[0] == 1)               // Touch Button
       {
         setColor(RxValueArr[4], RxValueArr[5], RxValueArr[6]);
         dispTouch(RxValueArr[4], RxValueArr[5], RxValueArr[6]);
@@ -564,7 +577,7 @@ void loop() {
         {
           Serial.println("UP GESTURE DETECTED");
           setColor((int)random(0, 1023), (int)random(0, 1023), (int)random(0, 1023));
-          if (!lampState)
+          if (lampState)
           {
             dispGesture(0);
             dispTimeTemp();
@@ -575,7 +588,7 @@ void loop() {
         {
           Serial.println("DOWN GESTURE DETECTED");
           setColor(0, 0, 0);
-          if (lampState)
+          if (!lampState)
           {
             dispGesture(1);
             dispTimeTemp();
@@ -622,7 +635,16 @@ void loop() {
     
     if (millis()>time_clock+60000)
     {
-       time_clock=millis();
-       dispTimeTemp();
+      time_clock=millis();
+      if(OLEDStatus)
+      {
+        dispTimeTemp();
+      }
+      else 
+      {
+        u8g2.clearBuffer();
+        do {
+           } while ( u8g2.nextPage() );
+      }
     }
 }
